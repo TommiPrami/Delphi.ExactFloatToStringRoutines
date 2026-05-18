@@ -77,8 +77,13 @@ end;
 
 procedure TFTSDMainForm.TestNumber(Value: Extended);
 var
-  ExtX: packed record Man: Int64; Exp: word end absolute Value;
-  cc: int64; ValE4K: extended; s: string;
+  ExtX: packed record
+    Man: Int64;
+    Exp: word
+  end absolute Value;
+  cc: Int64;
+  ValE4K: Extended;
+  s: string;
 begin
   if CheckBoxShowDebug.Checked then
     Delphi.ExactFloatToString.LogFmtX := LogFmt
@@ -159,8 +164,10 @@ procedure TFTSDMainForm.ButtonSmallestClick(Sender: TObject);
 var
   ext: extended;
   LIndex: integer;
-var
-  ExtX: packed record Man: Int64; Exp: word end absolute ext;
+  ExtX: packed record
+      Man: Int64;
+      Exp: word
+    end absolute ext;
 begin
   MemoLog.Lines.Add('');
 
@@ -188,8 +195,10 @@ procedure TFTSDMainForm.ButtonDenormal2Click(Sender: TObject);
 var
   ext: extended;
   i: integer;
-var
-  ExtX: packed record Man: Int64; Exp: word end absolute ext;
+  ExtX: packed record
+      Man: Int64;
+      Exp: word
+    end absolute ext;
   ext2: extended;
 begin
   MemoLog.Lines.Add('');
@@ -217,6 +226,11 @@ begin
 end;
 
 procedure TFTSDMainForm.ButtonSpecialsClick(Sender: TObject);
+const
+  NanX = 0/0;
+  DblSgnX: Int64 = $8000000000000000; {1 bit}
+  DblExpX: Int64 = $7FF0000000000000; {11 bits}
+  DblManX: Int64 = $000FFFFFFFFFFFFF; {52 bits (+ 1 = 53)}
 var
   Ext: extended;
   Dbl: double;
@@ -225,11 +239,6 @@ var
     Exp: word
     end absolute ext;
   DblX: int64 absolute dbl;
-const
-  NanX = 0/0;
-  DblSgnX: Int64    = $8000000000000000; {1 bit}
-  DblExpX: Int64    = $7FF0000000000000; {11 bits}
-  DblManX: Int64    = $000FFFFFFFFFFFFF; {52 bits (+ 1 = 53)}
 begin
   Screen.Cursor := crHourGlass;
   try
@@ -285,8 +294,10 @@ procedure TFTSDMainForm.ButtonPiClick(Sender: TObject);
 var
   ext: extended;
   d: double;
-var
-  ExtX: packed record Man: Int64; Exp: word end absolute ext;
+  ExtX: packed record
+      Man: Int64;
+      Exp: word
+    end absolute ext;
 begin
   MemoLog.Lines.Add('');
   ext := pi;
@@ -313,8 +324,12 @@ var
   sgl: Single;
   i: integer;
   { Equivalence a record to var ext: }
-  ExtX: packed record Man: Int64; Exp: word end absolute ext;
-  DblX: Int64 absolute dbl;  SglX: LongInt absolute sgl;  s: string;
+  ExtX: packed record
+    Man: Int64;
+    Exp: word end absolute ext;
+  DblX: Int64 absolute dbl;
+  SglX: LongInt absolute sgl;
+  s: string;
 begin
   Assert(SizeOf(ExtX) = SizeOf(ext));
   Assert(SizeOf(DblX) = SizeOf(dbl));

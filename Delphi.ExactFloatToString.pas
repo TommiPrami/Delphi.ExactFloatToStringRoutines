@@ -97,7 +97,6 @@ var
   SGrouping:     string =              '3;0';        // LOCALE_SGROUPING
 
 {$IFDEF DEBUG}
-
 procedure LogFmt(const Fmt: string; const Data: array of const);
 begin
   if Assigned(LogFmtX) then
@@ -107,7 +106,11 @@ end;
 
 procedure MultiplyAndAdd(Multiplican, Multiplier, CarryIn: TSglWord; var CarryOut, Product: TSglWord);
 var
-  Tmp: packed record case byte of 0: (W: TDblWord); 1: (L, H: TSglWord); end;
+  Tmp: packed record
+    case byte of
+      0: (W: TDblWord);
+      1: (L, H: TSglWord);
+    end;
 begin
   Tmp.W := Multiplican * Multiplier + CarryIn;
   CarryOut := Tmp.H;
@@ -116,7 +119,11 @@ end;
 
 function DivideAndRemainder(NumeratorHi, NumeratorLo: TSglWord; Divisor: TSglWord; var Quotient, Remainder: TSglWord): Boolean;
 var
-  Tmp1, Tmp2: packed record case byte of 0: (W: TDblWord); 1: (L, H: TSglWord); end;
+  Tmp1, Tmp2: packed record
+    case byte of
+      0: (W: TDblWord);
+      1: (L, H: TSglWord);
+    end;
 begin
   Result := (Divisor <> 0);
 
@@ -294,7 +301,7 @@ begin
 {$ENDIF}
 
   { Finish reducing BinExp to 0 by shifting mantissa up: }
-  while (BinExp > 0) do
+  while BinExp > 0 do
   begin
     Cry := 0;
 
@@ -328,6 +335,7 @@ begin
 {$IFDEF DEBUG}
   LogManExp('Before division', Man, BinExp, DecExp, NbrManElem);
 {$ENDIF}
+
   repeat
     { If not first then place separators: }
     if Result <> '' then
@@ -399,12 +407,13 @@ function ExactFloatToStrEx(const AValue: Extended; const ADecimalPoint: string =
   function IsSpace(const s: string): Boolean;
   begin
     Result := False;
+
     if Length(s) <> 1 then
       Exit;
 
     case Word(s[1]) of
-    $00A0, $1680, $2000, $2001, $2002, $2003, $2004, $2005,
-    $2006, $2007, $2008, $2009, $200A, $202F, $205F, $3000: Result := True;
+      $00A0, $1680, $2000, $2001, $2002, $2003, $2004, $2005,
+      $2006, $2007, $2008, $2009, $200A, $202F, $205F, $3000: Result := True;
     end;
   end;
 
@@ -497,10 +506,10 @@ begin
 end;
 
 function ParseFloat(const AValue: Extended): string;
-var
-  ValueRec: TExtendedFloat absolute AValue;
 const
   PN: array[Boolean] of Char = '+-';
+var
+  ValueRec: TExtendedFloat absolute AValue;
 begin
   // This call parses an extended value to its sign, exponent, and mantissa.
   Result := Format('Ext(Sgn="%s",Exp=$%4.4x,Man=$%16.16x)', [PN[(ValueRec.Exp and $8000) <> 0], (ValueRec.Exp and $7FFF),
@@ -508,10 +517,10 @@ begin
 end;
 
 function ParseFloat(const AValue: Double): string;
-var
-  LValueRec: Int64 absolute AValue;
 const
   PN: array [Boolean] of Char = '+-';
+var
+  LValueRec: Int64 absolute AValue;
 begin
   // This call parses a double value to its sign, exponent, and mantissa.
   Result := Format('Dbl(Sgn="%s",Exp=$%3.3x,Man=$%13.13x)', [PN[(LValueRec and $8000000000000000) <> 0],
@@ -519,10 +528,10 @@ begin
 end;
 
 function ParseFloat(const AValue: Single): string;
-var
-  LValueRec: LongInt absolute AValue;
 const
   PN: array [Boolean] of Char = '+-';
+var
+  LValueRec: LongInt absolute AValue;
 begin
   { This call parses a single value to its sign, exponent, and mantissa. }
   Result := Format('Sgl(Sgn="%s",Exp=$%2.2x,Man=$%6.6x)', [PN[(LValueRec and $80000000) <> 0],
