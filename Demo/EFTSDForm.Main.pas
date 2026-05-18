@@ -99,7 +99,7 @@ begin
 		if CheckBoxCallExVer.Checked then
 			s := ExactFloatToStrEx(Value)
 		else
-			s := ExactFloatToStrEx(Value);
+			s := ExactFloatToStr(Value);
 
 		cc := GetCpuClockCycleCount - cc;
 		LogFmt('  Required %s clock cycles',[ExactFloatToStr(cc)]);
@@ -169,9 +169,11 @@ begin
 		ExtX.Exp := 0; 
     ExtX.Man := $0000000000000001;
 
+    //
 		for i := 1 to 2 do
 		begin
 			TestNumber(ext);
+
 			ext := ext / 2;
 		end;
 	finally
@@ -298,6 +300,7 @@ var
 var
 	ExtX: packed record Man: Int64; Exp: word end absolute ext;
 begin
+  // TODO:
 end;
 
 procedure TFTSDMainForm.ButtonAnalyzeFloatClick(Sender: TObject);
