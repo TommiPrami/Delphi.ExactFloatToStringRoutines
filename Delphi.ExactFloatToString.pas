@@ -59,14 +59,18 @@ type
   procedure AnalyzeFloat(const AValue: Extended; var ANumberType: TTypeFloat; var ANegative: Boolean; var AExponent: Word;
     var AMantissa: Int64);
 
+(*
 const
-	//Different spaces you can use for digit grouping. SI recommends ThinSpace
+  TODO: Make this configurable
+
+	// Different spaces you can use for digit grouping. SI recommends ThinSpace
 	ThinSpace: WideChar          = #$2009; // U+2009 THIN SPACE
 	NarrowNoBreakSpace: WideChar = #$202F; // U+202F NARROW NO-BREAK SPACE
 	FigureSpace: WideChar        = #$2007; // U+2007 FIGURE SPACE
+*)
 
 var
-	LogFmtX: procedure(const Fmt: string; const Data: array of const) of object;
+	LogFmtX: procedure(const AFormat: string; const AData: array of const) of object;
 
 implementation
 
