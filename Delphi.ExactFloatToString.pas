@@ -1,4 +1,4 @@
-unit Delphi.ExactFloatToString;
+﻿unit Delphi.ExactFloatToString;
 
 (* *****************************************************************************
 
@@ -14,16 +14,16 @@ unit Delphi.ExactFloatToString;
 
   This code uses dynamic arrays, overloaded calls, and optional parameters.
 
-	These routines are not very optimized for speed or space.
-		I plan to replace the individual bit-shifts and multiplies-by-ten with multiple versions of same.
-		Consider making an object so that the arrays don't have to reallocated so often.
-		And consider making an output buffer character array so that the Result will be allocated only once.
+  These routines are not very optimized for speed or space.
+    I plan to replace the individual bit-shifts and multiplies-by-ten with multiple versions of same.
+    Consider making an object so that the arrays don't have to reallocated so often.
+    And consider making an output buffer character array so that the Result will be allocated only once.
 
-	Rev. 6/21/2018  Updated to Unicode strings and code cleanup
-	Rev. 1/1/2003   by JFH to add the three ParseFloat functions.
-	Rev. 12/26/2002 by JFH to bracket the DEBUG code with conditionals.
-	Rev. 12/25/2002 by JFH to fix 1E20 (BinExp) problem and check for zero and other special values.
-	Pgm. 12/24/2002 by John Herbster for Delphi programmers everywhere.
+  Rev. 6/21/2018  Updated to Unicode strings and code cleanup
+  Rev. 1/1/2003   by JFH to add the three ParseFloat functions.
+  Rev. 12/26/2002 by JFH to bracket the DEBUG code with conditionals.
+  Rev. 12/25/2002 by JFH to fix 1E20 (BinExp) problem and check for zero and other special values.
+  Pgm. 12/24/2002 by John Herbster for Delphi programmers everywhere.
 
 ***************************************************************************** *)
 
@@ -33,7 +33,7 @@ unit Delphi.ExactFloatToString;
 interface
 
 uses
-	SysUtils, Winapi.Windows;
+  SysUtils, Winapi.Windows;
 
 
   { This call uses the global DecimalSeparator and ThousandSeparator. It can be slow for very large or very small
@@ -63,374 +63,387 @@ type
 const
   TODO: Make this configurable
 
-	// Different spaces you can use for digit grouping. SI recommends ThinSpace
-	ThinSpace: WideChar          = #$2009; // U+2009 THIN SPACE
-	NarrowNoBreakSpace: WideChar = #$202F; // U+202F NARROW NO-BREAK SPACE
-	FigureSpace: WideChar        = #$2007; // U+2007 FIGURE SPACE
+  // Different spaces you can use for digit grouping. SI recommends ThinSpace
+  ThinSpace: WideChar          = #$2009; // U+2009 THIN SPACE
+  NarrowNoBreakSpace: WideChar = #$202F; // U+202F NARROW NO-BREAK SPACE
+  FigureSpace: WideChar        = #$2007; // U+2007 FIGURE SPACE
 *)
 
 var
-	LogFmtX: procedure(const AFormat: string; const AData: array of const) of object;
+  LogFmtX: procedure(const AFormat: string; const AData: array of const) of object;
 
 implementation
 
 type
-	TSglWord = Word;     //Consider Byte or Word
-	TDblWord = LongWord; //Consider Word or LongWord
+  TSglWord = Word;     //Consider Byte or Word
+  TDblWord = LongWord; //Consider Word or LongWord
 
-	TExtendedFloat = packed record
-		Man: Int64; //Mantissa
-		Exp: Word; //Sign and Exponent
-	end;
+  TExtendedFloat = packed record
+    Man: Int64; //Mantissa
+    Exp: Word; //Sign and Exponent
+  end;
 
 const
-//	SizeOfAryElem = SizeOf(TSglWord);
-	BitsInBufElem = SizeOf(TSglWord) * 8; // SizeOfAryElem*8;
+//  SizeOfAryElem = SizeOf(TSglWord);
+  BitsInBufElem = SizeOf(TSglWord) * 8; // SizeOfAryElem*8;
 
 var
-	SPositiveSign: string =              '+';          // LOCALE_SPOSITIVESIGN, at most 4 characters
-	SNegativeSign: string =              '-';          // LOCALE_SNEGATIVESIGN, at most 4 characters
-	SPosInfinity:  string =              'Infinity';   // LOCALE_SPOSINFINITY
-	SNegInfinity:  string =              '-Infinity';  // LOCALE_SNEGINFINITY
-	SNativeDigits: array[0..9] of Char = '0123456789'; // LOCALE_SNATIVEDIGITS
-	INegNumber:    Integer =             1;            // LOCALE_INEGNUMBER 0 = "(1.1), 1 = "-1.1", 2 = "- 1.1", 3 = "1.1-", 4 = "1.1 -"
-	SGrouping:     string =              '3;0';        // LOCALE_SGROUPING
+  SPositiveSign: string =              '+';          // LOCALE_SPOSITIVESIGN, at most 4 characters
+  SNegativeSign: string =              '-';          // LOCALE_SNEGATIVESIGN, at most 4 characters
+  SPosInfinity:  string =              'Infinity';   // LOCALE_SPOSINFINITY
+  SNegInfinity:  string =              '-Infinity';  // LOCALE_SNEGINFINITY
+  SNativeDigits: array[0..9] of Char = '0123456789'; // LOCALE_SNATIVEDIGITS
+  INegNumber:    Integer =             1;            // LOCALE_INEGNUMBER 0 = "(1.1), 1 = "-1.1", 2 = "- 1.1", 3 = "1.1-", 4 = "1.1 -"
+  SGrouping:     string =              '3;0';        // LOCALE_SGROUPING
 
 {$IFDEF DEBUG}
 
 procedure LogFmt(const Fmt: string; const Data: array of const);
 begin
-	if Assigned(LogFmtX) then
-		LogFmtX(Fmt, Data);
+  if Assigned(LogFmtX) then
+    LogFmtX(Fmt, Data);
 end;
 {$ENDIF}
 
 procedure MultiplyAndAdd(Multiplican, Multiplier, CarryIn: TSglWord; var CarryOut, Product: TSglWord);
 var
-	Tmp: packed record case byte of 0: (W: TDblWord); 1: (L, H: TSglWord); end;
+  Tmp: packed record case byte of 0: (W: TDblWord); 1: (L, H: TSglWord); end;
 begin
-	Tmp.W := Multiplican * Multiplier + CarryIn;
-	CarryOut := Tmp.H;
-	Product := Tmp.L;
+  Tmp.W := Multiplican * Multiplier + CarryIn;
+  CarryOut := Tmp.H;
+  Product := Tmp.L;
 end;
 
 function DivideAndRemainder(NumeratorHi, NumeratorLo: TSglWord; Divisor: TSglWord; var Quotient, Remainder: TSglWord): Boolean;
 var
-	Tmp1, Tmp2: packed record case byte of 0: (W: TDblWord); 1: (L, H: TSglWord); end;
+  Tmp1, Tmp2: packed record case byte of 0: (W: TDblWord); 1: (L, H: TSglWord); end;
 begin
-	Result := (Divisor <> 0);
-	if Result then
-	begin
-		Tmp1.H := NumeratorHi;
-		Tmp1.L := NumeratorLo;
-		Tmp2.W := Tmp1.W div Divisor;
+  Result := (Divisor <> 0);
 
-		if (Tmp2.H <> 0) then
-			Result := False
-		else
-		begin
-			Quotient := Tmp2.L;
-			Remainder := Tmp1.W mod Divisor;
-		end;
-	end;
+  if Result then
+  begin
+    Tmp1.H := NumeratorHi;
+    Tmp1.L := NumeratorLo;
+    Tmp2.W := Tmp1.W div Divisor;
+
+    if (Tmp2.H <> 0) then
+      Result := False
+    else
+    begin
+      Quotient := Tmp2.L;
+      Remainder := Tmp1.W mod Divisor;
+    end;
+  end;
 end;
 
 function AddSign(const s: string; IsNegative: Boolean): string;
 begin
-	{
-		LOCALE_INEGNUMBER
-			0 = "(1.1)
-			1 = "-1.1"
-			2 = "- 1.1"
-			3 = "1.1-"
-			4 = "1.1 -"
-	}
-	if IsNegative then
-	begin
-		case INegNumber of
-		  0: Result := '(' + s + ')';           // "(1.1)"
-		  1: Result := SNegativeSign + s;       // "-1.1"
-		  2: Result := SNegativeSign + ' ' + s; // "- 1.1"
-		  3: Result := s + SNegativeSign;       // "1.1-"
-		  4: Result := s + ' ' + SNegativeSign; // "1.1 -"
-		  else
-			  Result := SNegativeSign + s;
-		end
-	end
-	else
-	begin
-		case INegNumber of
-		  0: Result := s;                       // "(1.1)"
-		  1: Result := SPositiveSign + s;       // "-1.1"
-		  2: Result := SPositiveSign + ' ' + s; // "- 1.1"
-		  3: Result := s + SPositiveSign;       // "1.1-"
-		  4: Result := s + ' ' + SPositiveSign; // "1.1 -"
-		  else
-			  Result := SPositiveSign + s;
-		end
-	end;
+  {
+    LOCALE_INEGNUMBER
+      0 = "(1.1)
+      1 = "-1.1"
+      2 = "- 1.1"
+      3 = "1.1-"
+      4 = "1.1 -"
+  }
+  if IsNegative then
+  begin
+    case INegNumber of
+      0: Result := '(' + s + ')';           // "(1.1)"
+      1: Result := SNegativeSign + s;       // "-1.1"
+      2: Result := SNegativeSign + ' ' + s; // "- 1.1"
+      3: Result := s + SNegativeSign;       // "1.1-"
+      4: Result := s + ' ' + SNegativeSign; // "1.1 -"
+      else
+        Result := SNegativeSign + s;
+    end
+  end
+  else
+  begin
+    case INegNumber of
+      0: Result := s;                       // "(1.1)"
+      1: Result := SPositiveSign + s;       // "-1.1"
+      2: Result := SPositiveSign + ' ' + s; // "- 1.1"
+      3: Result := s + SPositiveSign;       // "1.1-"
+      4: Result := s + ' ' + SPositiveSign; // "1.1 -"
+      else
+        Result := SPositiveSign + s;
+    end
+  end;
 end;
 
 function FloatingBinPointToDecStr(const AValue; const AValNbrBits, AValBinExp: Integer; const ANegative: Boolean;
     const ADecimalPoint: string = '.'; const AThousandsSep: string = ''; const ADigitGroups: Integer = 0): string;
+{$IFDEF DEBUG}
+
+  procedure LogManExp(const ARem: string; const AMan: array of TSglWord; const ABinExp, ADecExp, ANbrManElem: Integer);
+  var
+    s: string;
+    k: integer;
+  begin
+    LogFmt('%s: BinExp=%d, DecExp=%d, NbrManElem=%d', [ARem, ABinExp, ADecExp, ANbrManElem]);
+    s := '';
+
+    for k := 0 to ANbrManElem - 1 do
+      s := Format(' %2.2x', [AMan[k]]) + s;
+
+    LogFmt('  %s', [s]);
+  end;
+{$ENDIF}
+
 var
-	Man: array of TSglWord;
-	CryE: TSglWord;
-	Cry: TDblWord;
-	NbrManElem: Integer;
-	BinExp: Integer; // neg of # binary fraction bits
-	DecExp: Integer; // neg of # decimal fraction bits
-	NbrDecFraDigits: Integer;
-	i, j, Tmp: integer;
-	c: Char;
-	Tmp1: packed record case byte of 0: (W: TDblWord); 1: (L, H: TSglWord); end;
-
-{$IFDEF DEBUG}
-	procedure LogManExp(const Rem: string);
-	var
-		s: string;
-		k: integer;
-	begin
-		LogFmt('%s: BinExp=%d, DecExp=%d, NbrManElem=%d', [Rem, BinExp, DecExp, NbrManElem]);
-		s := '';
-		for k := 0 to NbrManElem - 1 do
-			s := Format(' %2.2x', [Man[k]]) + s;
-		LogFmt('  %s', [s]);
-	end;
-{$ENDIF}
-
+  Man: array of TSglWord;
+  CryE: TSglWord;
+  Cry: TDblWord;
+  NbrManElem: Integer;
+  BinExp: Integer; // neg of # binary fraction bits
+  DecExp: Integer; // neg of # decimal fraction bits
+  NbrDecFraDigits: Integer;
+  LIndex: integer;
+  j: integer;
+  Tmp: integer;
+  c: Char;
+  Tmp1: packed record case byte of 0: (W: TDblWord); 1: (L, H: TSglWord); end;
 begin
-	{
-		Value = Mantissa * 2^BinExp * 10^DecExp
-	}
+  {
+    Value = Mantissa * 2^BinExp * 10^DecExp
+  }
 
-	{ Load Mantissa and binary exponent: }
-	NbrManElem := (AValNbrBits + BitsInBufElem - 1) div BitsInBufElem;
-	SetLength(Man, NbrManElem);
-	Move(AValue, Man[0], (AValNbrBits + 7) div 8); {Assuming little endian input}
+  { Load Mantissa and binary exponent: }
+  NbrManElem := (AValNbrBits + BitsInBufElem - 1) div BitsInBufElem;
+  SetLength(Man, NbrManElem);
+  Move(AValue, Man[0], (AValNbrBits + 7) div 8); {Assuming little endian input}
 
-	{ Set exponents: (Value = Mantissa * 2^BinExp * 10^DecExp) }
-	BinExp := AValBinExp;
-	DecExp := 0;
+  { Set exponents: (Value = Mantissa * 2^BinExp * 10^DecExp) }
+  BinExp := AValBinExp;
+  DecExp := 0;
 
-	{ Reduce mantissa to mininum number of bits (i.e. while mantissa is odd, div by 2 and inc binary exponent): }
+  { Reduce mantissa to mininum number of bits (i.e. while mantissa is odd, div by 2 and inc binary exponent): }
 {$IFDEF DEBUG}
-	LogManExp('Before trimming');
+  LogManExp('Before trimming', Man, BinExp, DecExp, NbrManElem);
 {$ENDIF}
-	while (NbrManElem > 0) and (BinExp < 0) and not Odd(Man[0]) do
-	begin
-		Cry := 0;
-		for i := NbrManElem - 1 downto 0 do
-		begin
-			Tmp := (Cry shl BitsInBufElem) or Man[i];
-			Man[i] := (Tmp shr 1);
-			Cry := Tmp and 1;
-		end;
-		Inc(BinExp);
-{$IFDEF DEBUG}
-		LogManExp('Shifting down');
-{$ENDIF}
-		if Man[NbrManElem - 1] = 0 then
-			Dec(NbrManElem);
-	end{while};
 
-	{ Check for zero: }
-	if NbrManElem = 0 then
-	begin
-		Result := AddSign(Result, ANegative);
-		Exit;
-	end;
+  while (NbrManElem > 0) and (BinExp < 0) and not Odd(Man[0]) do
+  begin
+    Cry := 0;
+    for LIndex := NbrManElem - 1 downto 0 do
+    begin
+      Tmp := (Cry shl BitsInBufElem) or Man[LIndex];
+      Man[LIndex] := (Tmp shr 1);
+      Cry := Tmp and 1;
+    end;
+
+    Inc(BinExp);
+
+{$IFDEF DEBUG}
+    LogManExp('Shifting down', Man, BinExp, DecExp, NbrManElem);
+{$ENDIF}
+
+    if Man[NbrManElem - 1] = 0 then
+      Dec(NbrManElem);
+  end;
+
+  { Check for zero: }
+  if NbrManElem = 0 then
+  begin
+    Result := AddSign(Result, ANegative);
+    Exit;
+  end;
 
    {
       Repeatably multiply by 10 until there is no more fraction. Decrement the DecExp at the same time.
       Note that a multiply by 10 is same as mul. by 5 and inc of BinExp exponent.
       Also note that a multiply by 5 adds two or three bits to number of mantissa bits.
    }
-	NbrDecFraDigits := -BinExp; {Observe! 0.5, 0.25, 0.125, 0.0625, 0.03125, ...}
-	i := NbrManElem + (3 * NbrDecFraDigits + BitsInBufElem - 1) div BitsInBufElem;
+  NbrDecFraDigits := -BinExp; {Observe! 0.5, 0.25, 0.125, 0.0625, 0.03125, ...}
+  LIndex := NbrManElem + (3 * NbrDecFraDigits + BitsInBufElem - 1) div BitsInBufElem;
 
-	if length(Man) < i then
-		SetLength(Man, i);
-
-{$IFDEF DEBUG}
-	LogManExp('Prep mul out');
-{$ENDIF}
-
-	for i := 1 to NbrDecFraDigits do
-	begin
-		CryE := 0;
-
-		for j := 0 to NbrManElem - 1 do
-			MultiplyAndAdd(Man[j], 5, CryE, CryE, Man[j]); // MultiplyAndAdd(Multiplican, Multiplier, CryIn: tSglWord; var CryOut, Product: tSglWord);
-
-		if CryE <> 0 then
-		begin
-			Inc(NbrManElem);
-			Man[NbrManElem - 1] := CryE;
-		end;
-
-		Inc(BinExp);
-		Dec(DecExp);
-{$IFDEF DEBUG}
-		LogManExp('Mul out');
-{$ENDIF}
-	end{i-loop};
+  if Length(Man) < LIndex then
+    SetLength(Man, LIndex);
 
 {$IFDEF DEBUG}
-	LogManExp('Finished multiplies');
+  LogManExp('Prep mul out', Man, BinExp, DecExp, NbrManElem);
 {$ENDIF}
 
-	{ Finish reducing BinExp to 0 by shifting mantissa up: }
-	while (BinExp > 0) do
-	begin
-		Cry := 0;
+  LIndex := 1;
+  while LIndex <= NbrDecFraDigits do
+  begin
+    CryE := 0;
 
-		for i := 0 to NbrManElem - 1 do
-		begin
-			Tmp1.W := Man[i] shl 1;
-			Man[i] := Tmp1.L + Cry;
-			Cry := Tmp1.H;
-		end;
+    for j := 0 to NbrManElem - 1 do
+      MultiplyAndAdd(Man[j], 5, CryE, CryE, Man[j]); // MultiplyAndAdd(Multiplican, Multiplier, CryIn: tSglWord; var CryOut, Product: tSglWord);
 
-		Dec(BinExp);
+    if CryE <> 0 then
+    begin
+      Inc(NbrManElem);
+      Man[NbrManElem - 1] := CryE;
+    end;
+
+    Inc(BinExp);
+    Dec(DecExp);
+
+{$IFDEF DEBUG}
+    LogManExp('Mul out', Man, BinExp, DecExp, NbrManElem);
+{$ENDIF}
+
+    Inc(LIndex);
+  end;
+
+{$IFDEF DEBUG}
+  LogManExp('Finished multiplies', Man, BinExp, DecExp, NbrManElem);
+{$ENDIF}
+
+  { Finish reducing BinExp to 0 by shifting mantissa up: }
+  while (BinExp > 0) do
+  begin
+    Cry := 0;
+
+    for LIndex := 0 to NbrManElem - 1 do
+    begin
+      Tmp1.W := Man[LIndex] shl 1;
+      Man[LIndex] := Tmp1.L + Cry;
+      Cry := Tmp1.H;
+    end;
+
+    Dec(BinExp);
 
     if Cry <> 0 then
-		begin
-			Inc(NbrManElem);
+    begin
+      Inc(NbrManElem);
 
-			if length(Man) < NbrManElem then
-				SetLength(Man, NbrManElem);
+      if length(Man) < NbrManElem then
+        SetLength(Man, NbrManElem);
 
-			Man[NbrManElem - 1] := Cry;
-		end;
+      Man[NbrManElem - 1] := Cry;
+    end;
 
 {$IFDEF DEBUG}
-		LogManExp('Shifting up');
+    LogManExp('Shifting up', Man, BinExp, DecExp, NbrManElem);
 {$ENDIF}
-	end{while};
+  end;
 
    { Repeatably divide by 10 and use remainders to create decimal AnsiString: }
-	Result := ''; {DEBUG}
+  Result := ''; {DEBUG}
 
 {$IFDEF DEBUG}
-	LogManExp('Before division');
+  LogManExp('Before division', Man, BinExp, DecExp, NbrManElem);
 {$ENDIF}
-	repeat
-		{ If not first then place separators: }
-		if Result <> '' then
-		begin
-			if DecExp = 0 then
-				Result := ADecimalPoint + Result
-			else if (ADigitGroups = 5) and ((DecExp mod 5) = 0) then
-				Result := AThousandsSep + Result
-			else if (ADigitGroups = 3) and ((DecExp mod 3) = 0) then
-				Result := AThousandsSep + Result
-		end;
+  repeat
+    { If not first then place separators: }
+    if Result <> '' then
+    begin
+      if DecExp = 0 then
+        Result := ADecimalPoint + Result
+      else if (ADigitGroups = 5) and ((DecExp mod 5) = 0) then
+        Result := AThousandsSep + Result
+      else if (ADigitGroups = 3) and ((DecExp mod 3) = 0) then
+        Result := AThousandsSep + Result
+    end;
 
-		{ DivideAndRemainder mantissa array by 10: }
-		CryE := 0;
+    { DivideAndRemainder mantissa array by 10: }
+    CryE := 0;
 
-		for i := NbrManElem - 1 downto 0 do
-			DivideAndRemainder(CryE, Man[i], 10, Man[i], CryE); // DivideAndRemainder(NumeratorHi, NumeratorLo: Byte;  Divisor: Byte; var Quotient, Remainder: Byte): boolean;
+    for LIndex := NbrManElem - 1 downto 0 do
+      DivideAndRemainder(CryE, Man[LIndex], 10, Man[LIndex], CryE); // DivideAndRemainder(NumeratorHi, NumeratorLo: Byte;  Divisor: Byte; var Quotient, Remainder: Byte): boolean;
 
-		Inc(DecExp);
-		c := SNativeDigits[CryE];
-		Result := c + Result;
+    Inc(DecExp);
+    c := SNativeDigits[CryE];
+    Result := c + Result;
 
-		if (NbrManElem > 0) and (Man[NbrManElem - 1] = 0) then
-			Dec(NbrManElem);
-	until (DecExp > 0) and (NbrManElem = 0);
+    if (NbrManElem > 0) and (Man[NbrManElem - 1] = 0) then
+      Dec(NbrManElem);
+  until (DecExp > 0) and (NbrManElem = 0);
 
-	Result := AddSign(Result, ANegative);
+  Result := AddSign(Result, ANegative);
 end;
 
 procedure AnalyzeFloat(const AValue: Extended; var ANumberType: TTypeFloat; var ANegative: Boolean; var AExponent: Word;
   var AMantissa: Int64);
 var
-	ValueRec: TExtendedFloat absolute AValue;
+  ValueRec: TExtendedFloat absolute AValue;
 begin
-	AMantissa := ValueRec.Man;
-	ANegative := (ValueRec.Exp and $8000) <> 0;
-	AExponent := (ValueRec.Exp and $7FFF);
+  AMantissa := ValueRec.Man;
+  ANegative := (ValueRec.Exp and $8000) <> 0;
+  AExponent := (ValueRec.Exp and $7FFF);
 
-	if AExponent = $7FFF then
-	begin
-		if (AMantissa = 0) then
-			ANumberType := tfInfinity
-		else
-		begin
-			AMantissa := (AMantissa and $3FFFFFFFFFFFFFFF);
+  if AExponent = $7FFF then
+  begin
+    if (AMantissa = 0) then
+      ANumberType := tfInfinity
+    else
+    begin
+      AMantissa := (AMantissa and $3FFFFFFFFFFFFFFF);
 
-			if ((ValueRec.Man and $4000000000000000) = 0) then
-				ANumberType := tfSignalingNan
-			else if (AMantissa = 0) then
-				ANumberType := tfIndefinite
-			else
-				ANumberType := tfQuietNan
-		end
-	end
-	else if (AExponent = 0) then
-	begin
-		if (AMantissa = 0) then
-			ANumberType := tfZero
-		else
-			ANumberType := tfDenormal
-	end
-	else
-		ANumberType := tfNormal;
+      if ((ValueRec.Man and $4000000000000000) = 0) then
+        ANumberType := tfSignalingNan
+      else if (AMantissa = 0) then
+        ANumberType := tfIndefinite
+      else
+        ANumberType := tfQuietNan
+    end
+  end
+  else if (AExponent = 0) then
+  begin
+    if (AMantissa = 0) then
+      ANumberType := tfZero
+    else
+      ANumberType := tfDenormal
+  end
+  else
+    ANumberType := tfNormal;
 end;
 
 function ExactFloatToStrEx(const AValue: Extended; const ADecimalPoint: string = '.'; const AThousandsSep: string = '';
   const ADigitGroups: Integer = 0): string;
 
-	function IsSpace(const s: string): Boolean;
-	begin
-		Result := False;
-		if Length(s) <> 1 then
-			Exit;
+  function IsSpace(const s: string): Boolean;
+  begin
+    Result := False;
+    if Length(s) <> 1 then
+      Exit;
 
-		case Word(s[1]) of
-		$00A0, $1680, $2000, $2001, $2002, $2003, $2004, $2005,
-		$2006, $2007, $2008, $2009, $200A, $202F, $205F, $3000: Result := True;
-		end;
-	end;
+    case Word(s[1]) of
+    $00A0, $1680, $2000, $2001, $2002, $2003, $2004, $2005,
+    $2006, $2007, $2008, $2009, $200A, $202F, $205F, $3000: Result := True;
+    end;
+  end;
 
 var
-	LNumberType: TTypeFloat;
-	LNegative: Boolean;
-	LExponent: Word;
-	LMantissa: Int64;
+  LNumberType: TTypeFloat;
+  LNegative: Boolean;
+  LExponent: Word;
+  LMantissa: Int64;
   LThousandsSeparator: string;
   L0DigitGroups: Integer;
 const
-	BIAS = $3FFF;
+  BIAS = $3FFF;
 begin
 {
-	ThousandsSep:
-			' ': group digits in groups of 5
-			'', #0: no digit grouping
+  ThousandsSep:
+      ' ': group digits in groups of 5
+      '', #0: no digit grouping
 }
-	AnalyzeFloat(AValue, LNumberType, LNegative, LExponent, LMantissa);
+  AnalyzeFloat(AValue, LNumberType, LNegative, LExponent, LMantissa);
 
-	//Convert legacy #0 char to an actual empty string.
-	if AThousandsSep = #0 then
-		LThousandsSeparator := ''
+  //Convert legacy #0 char to an actual empty string.
+  if AThousandsSep = #0 then
+    LThousandsSeparator := ''
   else
     LThousandsSeparator := AThousandsSep;
 
-	// If a ThousandsSeparator is present, but the DigitGroups parameter is zero, then auto-guess grouping
-	// (Because why else would you specify a separator if you didn't want one)
-	if (ADigitGroups = 0) and (LThousandsSeparator <> '') then
-	begin
-		if IsSpace(LThousandsSeparator) then
-			L0DigitGroups := 5
-		else
-			L0DigitGroups := 3;
-	end
+  // If a ThousandsSeparator is present, but the DigitGroups parameter is zero, then auto-guess grouping
+  // (Because why else would you specify a separator if you didn't want one)
+  if (ADigitGroups = 0) and (LThousandsSeparator <> '') then
+  begin
+    if IsSpace(LThousandsSeparator) then
+      L0DigitGroups := 5
+    else
+      L0DigitGroups := 3;
+  end
   else
     L0DigitGroups := ADigitGroups;
 
-	case LNumberType of
+  case LNumberType of
     tfNormal:       Result := FloatingBinPointToDecStr(LMantissa, {NbrBits}64, {BinExp}(LExponent - BIAS) - 63, LNegative, ADecimalPoint,
       LThousandsSeparator, L0DigitGroups);
     tfDenormal:     Result := FloatingBinPointToDecStr(LMantissa, {NbrBits}64, {BinExp}(-BIAS - 62), LNegative, ADecimalPoint,
@@ -448,100 +461,100 @@ begin
       end;
     else
       Result := 'UnknownNumberType';
-	end;
+  end;
 end;
 
 function ExactFloatToStr(const AValue: Extended): string;
 begin
-	Result := ExactFloatToStr(AValue, FormatSettings);
+  Result := ExactFloatToStr(AValue, FormatSettings);
 end;
 
 function ExactFloatToStr(const AValue: Extended; const AFormatSettings: TFormatSettings): string; overload;
 var
-	LDigitGroups: Integer;
+  LDigitGroups: Integer;
 begin
 {
-		Handling groups is fairly difficult.
+    Handling groups is fairly difficult.
 
-			Specification  Resulting string
-			3;0            3,000,000,000,000
-			3;2;0          30,00,00,00,00,000
-			3              3000000000,000
-			3;2            30000000,00,000
+      Specification  Resulting string
+      3;0            3,000,000,000,000
+      3;2;0          30,00,00,00,00,000
+      3              3000000000,000
+      3;2            30000000,00,000
 
-		We'll just read the first digit
+    We'll just read the first digit
 }
-	LDigitGroups := 0;
+  LDigitGroups := 0;
 
-	if SGrouping <> '' then
-	begin
-		case SGrouping[1] of
-		  '0'..'9': LDigitGroups := Ord(SGrouping[1]) - Ord('0');
-		end;
-	end;
+  if SGrouping <> '' then
+  begin
+    case SGrouping[1] of
+      '0'..'9': LDigitGroups := Ord(SGrouping[1]) - Ord('0');
+    end;
+  end;
 
-	Result := ExactFloatToStrEx(AValue, AFormatSettings.DecimalSeparator, AFormatSettings.ThousandSeparator, LDigitGroups);
+  Result := ExactFloatToStrEx(AValue, AFormatSettings.DecimalSeparator, AFormatSettings.ThousandSeparator, LDigitGroups);
 end;
 
 function ParseFloat(const AValue: Extended): string;
 var
-	ValueRec: TExtendedFloat absolute AValue;
+  ValueRec: TExtendedFloat absolute AValue;
 const
-	PN: array[Boolean] of Char = '+-';
+  PN: array[Boolean] of Char = '+-';
 begin
-	// This call parses an extended value to its sign, exponent, and mantissa.
-	Result := Format('Ext(Sgn="%s",Exp=$%4.4x,Man=$%16.16x)', [PN[(ValueRec.Exp and $8000) <> 0], (ValueRec.Exp and $7FFF),
-	  ValueRec.Man]);
+  // This call parses an extended value to its sign, exponent, and mantissa.
+  Result := Format('Ext(Sgn="%s",Exp=$%4.4x,Man=$%16.16x)', [PN[(ValueRec.Exp and $8000) <> 0], (ValueRec.Exp and $7FFF),
+    ValueRec.Man]);
 end;
 
 function ParseFloat(const AValue: Double): string;
 var
-	LValueRec: Int64 absolute AValue;
+  LValueRec: Int64 absolute AValue;
 const
-	PN: array [Boolean] of Char = '+-';
+  PN: array [Boolean] of Char = '+-';
 begin
-	// This call parses a double value to its sign, exponent, and mantissa.
-	Result := Format('Dbl(Sgn="%s",Exp=$%3.3x,Man=$%13.13x)', [PN[(LValueRec and $8000000000000000) <> 0],
-	  ((LValueRec and $7FF0000000000000) shr 52), (LValueRec and $000FFFFFFFFFFFFF)]);
+  // This call parses a double value to its sign, exponent, and mantissa.
+  Result := Format('Dbl(Sgn="%s",Exp=$%3.3x,Man=$%13.13x)', [PN[(LValueRec and $8000000000000000) <> 0],
+    ((LValueRec and $7FF0000000000000) shr 52), (LValueRec and $000FFFFFFFFFFFFF)]);
 end;
 
 function ParseFloat(const AValue: Single): string;
 var
-	LValueRec: LongInt absolute AValue;
+  LValueRec: LongInt absolute AValue;
 const
-	PN: array [Boolean] of Char = '+-';
+  PN: array [Boolean] of Char = '+-';
 begin
-	{ This call parses a single value to its sign, exponent, and mantissa. }
-	Result := Format('Sgl(Sgn="%s",Exp=$%2.2x,Man=$%6.6x)', [PN[(LValueRec and $80000000) <> 0],
+  { This call parses a single value to its sign, exponent, and mantissa. }
+  Result := Format('Sgl(Sgn="%s",Exp=$%2.2x,Man=$%6.6x)', [PN[(LValueRec and $80000000) <> 0],
     ((LValueRec and $7F800000) shr 23), (LValueRec and $007FFFFF)]);
 end;
 
 procedure InitFormatSettings;
 var
-	localeID: LCID;
-	s: string;
+  localeID: LCID;
+  s: string;
 const
-	//Windows Vista
-	LOCALE_SPOSINFINITY = $0000006a;   // + Infinity, eg "infinity"
-	LOCALE_SNEGINFINITY = $0000006b;   // - Infinity, eg "-infinity"
+  //Windows Vista
+  LOCALE_SPOSINFINITY = $0000006a;   // + Infinity, eg "infinity"
+  LOCALE_SNEGINFINITY = $0000006b;   // - Infinity, eg "-infinity"
 begin
-	localeID := LOCALE_USER_DEFAULT;
+  localeID := LOCALE_USER_DEFAULT;
 
-	SPositiveSign := GetLocaleStr(localeID, LOCALE_SPOSITIVESIGN, '+'); // at most 4 characters
-	SNegativeSign := GetLocaleStr(localeID, LOCALE_SNEGATIVESIGN, '-'); // at most 4 characters
-	SPosInfinity  := GetLocaleStr(localeID, LOCALE_SPOSINFINITY,  'Infinity');   //
-	SNegInfinity  := GetLocaleStr(localeID, LOCALE_SNEGINFINITY,  '-Infinity');  //
-	SGrouping     := GetLocaleStr(localeID, LOCALE_SGROUPING,     '3;0');        //
+  SPositiveSign := GetLocaleStr(localeID, LOCALE_SPOSITIVESIGN, '+'); // at most 4 characters
+  SNegativeSign := GetLocaleStr(localeID, LOCALE_SNEGATIVESIGN, '-'); // at most 4 characters
+  SPosInfinity  := GetLocaleStr(localeID, LOCALE_SPOSINFINITY,  'Infinity');   //
+  SNegInfinity  := GetLocaleStr(localeID, LOCALE_SNEGINFINITY,  '-Infinity');  //
+  SGrouping     := GetLocaleStr(localeID, LOCALE_SGROUPING,     '3;0');        //
 
-	INegNumber    := StrToIntDef(GetLocaleStr(localeID, LOCALE_INEGNUMBER, '1'), 1);
+  INegNumber    := StrToIntDef(GetLocaleStr(localeID, LOCALE_INEGNUMBER, '1'), 1);
 
-	s := GetLocaleStr(localeID, LOCALE_SNATIVEDIGITS, '0123456789');
+  s := GetLocaleStr(localeID, LOCALE_SNATIVEDIGITS, '0123456789');
 
-	if Length(s) = 10 then
-		Move(s[1], SNativeDigits[0], 10*SizeOf(Char));
+  if Length(s) = 10 then
+    Move(s[1], SNativeDigits[0], 10*SizeOf(Char));
 end;
 
 initialization
-	InitFormatSettings;
+  InitFormatSettings;
 
 end.
