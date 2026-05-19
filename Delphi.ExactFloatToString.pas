@@ -28,7 +28,7 @@
 ***************************************************************************** *)
 
 { Turn DEBUG on to make available detail debugging at expense of speed.}
-{DEFINE DEBUG}
+{.$DEFINE DEBUG}
 
 interface
 
@@ -103,6 +103,7 @@ var
   SNativeDigits: array[0..9] of Char = '0123456789'; // LOCALE_SNATIVEDIGITS
   INegNumber:    Integer =             1;            // LOCALE_INEGNUMBER 0 = "(1.1), 1 = "-1.1", 2 = "- 1.1", 3 = "1.1-", 4 = "1.1 -"
   SGrouping:     string =              '3;0';        // LOCALE_SGROUPING
+  SIGN_ARRAY: array[Boolean] of Char = '+-';
 
 {$IFDEF DEBUG}
 procedure LogFmt(const AFormat: string; const AData: array of const; const AIndent: Integer = 0);
@@ -112,39 +113,40 @@ begin
 end;
 {$ENDIF}
 
-procedure MultiplyAndAdd(Multiplican, Multiplier, CarryIn: TSglWord; var CarryOut, Product: TSglWord);
+procedure MultiplyAndAdd(const AMultiplican, AMultiplier, ACarryIn: TSglWord; var ACarryOut, AProduct: TSglWord);
 var
-  Tmp: TFloatParts;
+  LTmp: TFloatParts;
 begin
-  Tmp.W := Multiplican * Multiplier + CarryIn;
-  CarryOut := Tmp.H;
-  Product := Tmp.L;
+  LTmp.W := AMultiplican * AMultiplier + ACarryIn;
+
+  ACarryOut := LTmp.H;
+  AProduct := LTmp.L;
 end;
 
-function DivideAndRemainder(NumeratorHi, NumeratorLo: TSglWord; Divisor: TSglWord; var Quotient, Remainder: TSglWord): Boolean;
+function DivideAndRemainder(const ANumeratorHi, ANumeratorLo: TSglWord; const ADivisor: TSglWord; var AQuotient, ARemainder: TSglWord): Boolean;
 var
-  Tmp1: TFloatParts;
-  Tmp2: TFloatParts;
+  LTmp1: TFloatParts;
+  LTmp2: TFloatParts;
 begin
-  Result := Divisor <> 0;
+  Result := ADivisor <> 0;
 
   if Result then
   begin
-    Tmp1.H := NumeratorHi;
-    Tmp1.L := NumeratorLo;
-    Tmp2.W := Tmp1.W div Divisor;
+    LTmp1.H := ANumeratorHi;
+    LTmp1.L := ANumeratorLo;
+    LTmp2.W := LTmp1.W div ADivisor;
 
-    if (Tmp2.H <> 0) then
+    if LTmp2.H <> 0 then
       Result := False
     else
     begin
-      Quotient := Tmp2.L;
-      Remainder := Tmp1.W mod Divisor;
+      AQuotient := LTmp2.L;
+      ARemainder := LTmp1.W mod ADivisor;
     end;
   end;
 end;
 
-function AddSign(const s: string; IsNegative: Boolean): string;
+function AddSign(const AStringValue: string; const AIsNegative: Boolean): string;
 begin
   {
     LOCALE_INEGNUMBER
@@ -154,28 +156,28 @@ begin
       3 = "1.1-"
       4 = "1.1 -"
   }
-  if IsNegative then
+  if AIsNegative then
   begin
     case INegNumber of
-      0: Result := '(' + s + ')';           // "(1.1)"
-      1: Result := SNegativeSign + s;       // "-1.1"
-      2: Result := SNegativeSign + ' ' + s; // "- 1.1"
-      3: Result := s + SNegativeSign;       // "1.1-"
-      4: Result := s + ' ' + SNegativeSign; // "1.1 -"
+      0: Result := '(' + AStringValue + ')';           // "(1.1)"
+      1: Result := SNegativeSign + AStringValue;       // "-1.1"
+      2: Result := SNegativeSign + ' ' + AStringValue; // "- 1.1"
+      3: Result := AStringValue + SNegativeSign;       // "1.1-"
+      4: Result := AStringValue + ' ' + SNegativeSign; // "1.1 -"
       else
-        Result := SNegativeSign + s;
+        Result := SNegativeSign + AStringValue;
     end
   end
   else
   begin
     case INegNumber of
-      0: Result := s;                       // "(1.1)"
-      1: Result := SPositiveSign + s;       // "-1.1"
-      2: Result := SPositiveSign + ' ' + s; // "- 1.1"
-      3: Result := s + SPositiveSign;       // "1.1-"
-      4: Result := s + ' ' + SPositiveSign; // "1.1 -"
+      0: Result := AStringValue;                       // "(1.1)"
+      1: Result := SPositiveSign + AStringValue;       // "-1.1"
+      2: Result := SPositiveSign + ' ' + AStringValue; // "- 1.1"
+      3: Result := AStringValue + SPositiveSign;       // "1.1-"
+      4: Result := AStringValue + ' ' + SPositiveSign; // "1.1 -"
       else
-        Result := SPositiveSign + s;
+        Result := SPositiveSign + AStringValue;
     end
   end;
 end;
@@ -186,16 +188,16 @@ function FloatingBinPointToDecStr(const AValue; const AValNbrBits, AValBinExp: I
 {$IFDEF DEBUG}
   procedure LogManExp(const ARem: string; const AMan: array of TSglWord; const ABinExp, ADecExp, ANbrManElem: Integer);
   var
-    s: string;
-    k: integer;
+    LStringValue: string;
+    LIndex: integer;
   begin
     LogFmt('%s: BinExp=%d, DecExp=%d, NbrManElem=%d', [ARem, ABinExp, ADecExp, ANbrManElem]);
-    s := '';
+    LStringValue := '';
 
-    for k := 0 to ANbrManElem - 1 do
-      s := Format(' %2.2x', [AMan[k]]) + s;
+    for LIndex := 0 to ANbrManElem - 1 do
+      LStringValue := Format(' %2.2x', [AMan[LIndex]]) + LStringValue;
 
-    LogFmt('%s', [s], 1);
+    LogFmt('%s', [LStringValue], 1);
   end;
 {$ENDIF}
 
@@ -234,6 +236,7 @@ begin
   while (NbrManElem > 0) and (BinExp < 0) and not Odd(Man[0]) do
   begin
     Cry := 0;
+
     for LIndex := NbrManElem - 1 downto 0 do
     begin
       Tmp := (Cry shl BitsInBufElem) or Man[LIndex];
@@ -369,11 +372,11 @@ end;
 procedure AnalyzeFloat(const AValue: Extended; var ANumberType: TTypeFloat; var ANegative: Boolean; var AExponent: Word;
   var AMantissa: Int64);
 var
-  ValueRec: TExtendedFloat absolute AValue;
+  LValueRec: TExtendedFloat absolute AValue;
 begin
-  AMantissa := ValueRec.Mantissa;
-  ANegative := (ValueRec.Exponent and $8000) <> 0;
-  AExponent := (ValueRec.Exponent and $7FFF);
+  AMantissa := LValueRec.Mantissa;
+  ANegative := (LValueRec.Exponent and $8000) <> 0;
+  AExponent := (LValueRec.Exponent and $7FFF);
 
   if AExponent = $7FFF then
   begin
@@ -383,7 +386,7 @@ begin
     begin
       AMantissa := (AMantissa and $3FFFFFFFFFFFFFFF);
 
-      if ((ValueRec.Mantissa and $4000000000000000) = 0) then
+      if ((LValueRec.Mantissa and $4000000000000000) = 0) then
         ANumberType := tfSignalingNan
       else if (AMantissa = 0) then
         ANumberType := tfIndefinite
@@ -454,9 +457,9 @@ begin
     L0DigitGroups := ADigitGroups;
 
   case LNumberType of
-    tfNormal:       Result := FloatingBinPointToDecStr(LMantissa, {NbrBits}64, {BinExp}(LExponent - BIAS) - 63, LNegative, ADecimalPoint,
+    tfNormal:       Result := FloatingBinPointToDecStr(LMantissa, 64, (LExponent - BIAS) - 63, LNegative, ADecimalPoint,
       LThousandsSeparator, L0DigitGroups);
-    tfDenormal:     Result := FloatingBinPointToDecStr(LMantissa, {NbrBits}64, {BinExp}(-BIAS - 62), LNegative, ADecimalPoint,
+    tfDenormal:     Result := FloatingBinPointToDecStr(LMantissa, 64, (-BIAS - 62), LNegative, ADecimalPoint,
       LThousandsSeparator, L0DigitGroups);
     tfQuietNan:     Result := Format('QNaN(%d)', [LMantissa]);
     tfSignalingNan: Result := Format('SNaN(%d)', [LMantissa]);
@@ -507,61 +510,59 @@ begin
 end;
 
 function ParseFloat(const AValue: Extended): string;
-const
-  PN: array[Boolean] of Char = '+-';
 var
   ValueRec: TExtendedFloat absolute AValue;
 begin
   // This call parses an extended value to its sign, exponent, and mantissa.
-  Result := Format('Ext(Sgn="%s",Exp=$%4.4x,Man=$%16.16x)', [PN[(ValueRec.Exponent and $8000) <> 0], (ValueRec.Exponent and $7FFF),
+  Result := Format('Ext(Sgn="%s",Exp=$%4.4x,Man=$%16.16x)', [SIGN_ARRAY[(ValueRec.Exponent and $8000) <> 0], (ValueRec.Exponent and $7FFF),
     ValueRec.Mantissa]);
 end;
 
 function ParseFloat(const AValue: Double): string;
-const
-  PN: array [Boolean] of Char = '+-';
 var
   LValueRec: Int64 absolute AValue;
 begin
   // This call parses a double value to its sign, exponent, and mantissa.
-  Result := Format('Dbl(Sgn="%s",Exp=$%3.3x,Man=$%13.13x)', [PN[(LValueRec and $8000000000000000) <> 0],
+  Result := Format('Dbl(Sgn="%s",Exp=$%3.3x,Man=$%13.13x)', [SIGN_ARRAY[(LValueRec and $8000000000000000) <> 0],
     ((LValueRec and $7FF0000000000000) shr 52), (LValueRec and $000FFFFFFFFFFFFF)]);
 end;
 
 function ParseFloat(const AValue: Single): string;
-const
-  PN: array [Boolean] of Char = '+-';
 var
   LValueRec: LongInt absolute AValue;
 begin
   { This call parses a single value to its sign, exponent, and mantissa. }
-  Result := Format('Sgl(Sgn="%s",Exp=$%2.2x,Man=$%6.6x)', [PN[(LValueRec and $80000000) <> 0],
+  Result := Format('Sgl(Sgn="%s",Exp=$%2.2x,Man=$%6.6x)', [SIGN_ARRAY[(LValueRec and $80000000) <> 0],
     ((LValueRec and $7F800000) shr 23), (LValueRec and $007FFFFF)]);
 end;
 
 procedure InitFormatSettings;
-var
-  localeID: LCID;
-  s: string;
 const
   //Windows Vista
   LOCALE_SPOSINFINITY = $0000006a;   // + Infinity, eg "infinity"
   LOCALE_SNEGINFINITY = $0000006b;   // - Infinity, eg "-infinity"
+var
+  LLocaleID: LCID;
+  LStringValue: string;
 begin
-  localeID := LOCALE_USER_DEFAULT;
+  LLocaleID := LOCALE_USER_DEFAULT;
 
-  SPositiveSign := GetLocaleStr(localeID, LOCALE_SPOSITIVESIGN, '+'); // at most 4 characters
-  SNegativeSign := GetLocaleStr(localeID, LOCALE_SNEGATIVESIGN, '-'); // at most 4 characters
-  SPosInfinity  := GetLocaleStr(localeID, LOCALE_SPOSINFINITY,  'Infinity');   //
-  SNegInfinity  := GetLocaleStr(localeID, LOCALE_SNEGINFINITY,  '-Infinity');  //
-  SGrouping     := GetLocaleStr(localeID, LOCALE_SGROUPING,     '3;0');        //
+{$IFDEF MSWINDOWS}
+  {$WARN SYMBOL_PLATFORM OFF}
+  SPositiveSign := GetLocaleStr(LLocaleID, LOCALE_SPOSITIVESIGN, '+'); // at most 4 characters
+  SNegativeSign := GetLocaleStr(LLocaleID, LOCALE_SNEGATIVESIGN, '-'); // at most 4 characters
+  SPosInfinity  := GetLocaleStr(LLocaleID, LOCALE_SPOSINFINITY,  'Infinity');   //
+  SNegInfinity  := GetLocaleStr(LLocaleID, LOCALE_SNEGINFINITY,  '-Infinity');  //
+  SGrouping     := GetLocaleStr(LLocaleID, LOCALE_SGROUPING,     '3;0');        //
 
-  INegNumber    := StrToIntDef(GetLocaleStr(localeID, LOCALE_INEGNUMBER, '1'), 1);
+  INegNumber    := StrToIntDef(GetLocaleStr(LLocaleID, LOCALE_INEGNUMBER, '1'), 1);
 
-  s := GetLocaleStr(localeID, LOCALE_SNATIVEDIGITS, '0123456789');
+  LStringValue := GetLocaleStr(LLocaleID, LOCALE_SNATIVEDIGITS, '0123456789');
 
-  if Length(s) = 10 then
-    Move(s[1], SNativeDigits[0], 10*SizeOf(Char));
+  if Length(LStringValue) = 10 then
+    Move(LStringValue[1], SNativeDigits[0], 10 * SizeOf(Char));
+  {$WARN SYMBOL_PLATFORM ON}
+{$ENDIF}
 end;
 
 initialization
