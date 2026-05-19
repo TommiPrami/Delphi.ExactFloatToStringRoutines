@@ -45,7 +45,7 @@ type
   end;
 
   TFloatParts = packed record
-    case byte of
+    case Byte of
       0: (W: TDblWord);
       1: (L, H: TSglWord);
     end;
@@ -178,7 +178,7 @@ begin
       4: Result := AStringValue + ' ' + SPositiveSign; // "1.1 -"
       else
         Result := SPositiveSign + AStringValue;
-    end
+    end;
   end;
 end;
 
@@ -189,7 +189,7 @@ function FloatingBinPointToDecStr(const AValue; const AValNbrBits, AValBinExp: I
   procedure LogManExp(const ARem: string; const AMan: array of TSglWord; const ABinExp, ADecExp, ANbrManElem: Integer);
   var
     LStringValue: string;
-    LIndex: integer;
+    LIndex: Integer;
   begin
     LogFmt('%s: BinExp=%d, DecExp=%d, NbrManElem=%d', [ARem, ABinExp, ADecExp, ANbrManElem]);
     LStringValue := '';
@@ -228,7 +228,7 @@ begin
   LBinExp := AValBinExp;
   LDecExp := 0;
 
-  { Reduce mantissa to mininum number of bits (i.e. while mantissa is odd, div by 2 and inc binary exponent): }
+  { Reduce mantissa to minimum number of bits (i.e. while mantissa is odd, div by 2 and inc binary exponent): }
 {$IFDEF DEBUG}
   LogManExp('Before trimming', LMantissaArray, LBinExp, LDecExp, LMantissaCount);
 {$ENDIF}
@@ -322,7 +322,7 @@ begin
     begin
       Inc(LMantissaCount);
 
-      if length(LMantissaArray) < LMantissaCount then
+      if Length(LMantissaArray) < LMantissaCount then
         SetLength(LMantissaArray, LMantissaCount);
 
       LMantissaArray[LMantissaCount - 1] := LCry;
@@ -349,7 +349,7 @@ begin
       else if (ADigitGroups = 5) and ((LDecExp mod 5) = 0) then
         Result := AThousandsSep + Result
       else if (ADigitGroups = 3) and ((LDecExp mod 3) = 0) then
-        Result := AThousandsSep + Result
+        Result := AThousandsSep + Result;
     end;
 
     { DivideAndRemainder mantissa array by 10: }

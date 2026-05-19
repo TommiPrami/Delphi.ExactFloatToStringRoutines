@@ -118,12 +118,12 @@ begin
   LStrValue := AStr;
   LDestinationIndex := 0;
 
-  for LSourceIndex := 1 to length(LStrValue) do
+  for LSourceIndex := 1 to Length(LStrValue) do
   begin
     if CharInSet(LStrValue[LSourceIndex], ['-','0'..'9','.','e','E']) then
     begin
       Inc(LDestinationIndex);
-      LStrValue[LDestinationIndex] := LStrValue[LSourceIndex]
+      LStrValue[LDestinationIndex] := LStrValue[LSourceIndex];
     end;
   end;
 
@@ -157,7 +157,7 @@ end;
 
 procedure TFTSDMainForm.ButtonSmallestClick(ASender: TObject);
 var
-  LExtendedValue: extended;
+  LExtendedValue: Extended;
   LIndex: Integer;
   LExtendedRec: TExtendedFloat absolute LExtendedValue;
 begin
@@ -186,7 +186,7 @@ end;
 procedure TFTSDMainForm.ButtonDenormal2Click(ASender: TObject);
 var
   LExtendedValue: Extended;
-  LIndex: integer;
+  LIndex: Integer;
   LExtendedRec: TExtendedFloat absolute LExtendedValue;
   LExtendedValue2: Extended;
 begin
@@ -221,8 +221,8 @@ const
   DblExpX: Int64 = $7FF0000000000000; {11 bits}
   DblManX: Int64 = $000FFFFFFFFFFFFF; {52 bits (+ 1 = 53)}
 var
-  LExtendedValue: extended;
-  LDoubleValue: double;
+  LExtendedValue: Extended;
+  LDoubleValue: Double;
   LExtendedRec: TExtendedFloat absolute LExtendedValue;
   LDoubleAsInt64: Int64 absolute LDoubleValue;
 begin
