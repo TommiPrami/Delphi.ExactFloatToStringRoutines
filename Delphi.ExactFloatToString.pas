@@ -202,60 +202,60 @@ function FloatingBinPointToDecStr(const AValue; const AValNbrBits, AValBinExp: I
 {$ENDIF}
 
 var
-  Man: array of TSglWord;
-  CryE: TSglWord;
-  Cry: TDblWord;
-  NbrManElem: Integer;
-  BinExp: Integer; // neg of # binary fraction bits
-  DecExp: Integer; // neg of # decimal fraction bits
-  NbrDecFraDigits: Integer;
+  LMantissaArray: array of TSglWord;
+  LCryE: TSglWord;
+  LCry: TDblWord;
+  LMantissaCount: Integer;
+  LBinExp: Integer; // neg of # binary fraction bits
+  LDecExp: Integer; // neg of # decimal fraction bits
+  LDeximalCount: Integer;
   LIndex: Integer;
-  j: Integer;
-  Tmp: Integer;
-  c: Char;
-  Tmp1: TFloatParts;
+  LMantissaIndex: Integer;
+  LTmpInt: Integer;
+  LChar: Char;
+  LTempFloatParts: TFloatParts;
 begin
   {
     Value = Mantissa * 2^BinExp * 10^DecExp
   }
 
   { Load Mantissa and binary exponent: }
-  NbrManElem := (AValNbrBits + BitsInBufElem - 1) div BitsInBufElem;
-  SetLength(Man, NbrManElem);
-  Move(AValue, Man[0], (AValNbrBits + 7) div 8); {Assuming little endian input}
+  LMantissaCount := (AValNbrBits + BitsInBufElem - 1) div BitsInBufElem;
+  SetLength(LMantissaArray, LMantissaCount);
+  Move(AValue, LMantissaArray[0], (AValNbrBits + 7) div 8); {Assuming little endian input}
 
   { Set exponents: (Value = Mantissa * 2^BinExp * 10^DecExp) }
-  BinExp := AValBinExp;
-  DecExp := 0;
+  LBinExp := AValBinExp;
+  LDecExp := 0;
 
   { Reduce mantissa to mininum number of bits (i.e. while mantissa is odd, div by 2 and inc binary exponent): }
 {$IFDEF DEBUG}
-  LogManExp('Before trimming', Man, BinExp, DecExp, NbrManElem);
+  LogManExp('Before trimming', LMantissaArray, LBinExp, LDecExp, LMantissaCount);
 {$ENDIF}
 
-  while (NbrManElem > 0) and (BinExp < 0) and not Odd(Man[0]) do
+  while (LMantissaCount > 0) and (LBinExp < 0) and not Odd(LMantissaArray[0]) do
   begin
-    Cry := 0;
+    LCry := 0;
 
-    for LIndex := NbrManElem - 1 downto 0 do
+    for LIndex := LMantissaCount - 1 downto 0 do
     begin
-      Tmp := (Cry shl BitsInBufElem) or Man[LIndex];
-      Man[LIndex] := (Tmp shr 1);
-      Cry := Tmp and 1;
+      LTmpInt := (LCry shl BitsInBufElem) or LMantissaArray[LIndex];
+      LMantissaArray[LIndex] := (LTmpInt shr 1);
+      LCry := LTmpInt and 1;
     end;
 
-    Inc(BinExp);
+    Inc(LBinExp);
 
 {$IFDEF DEBUG}
-    LogManExp('Shifting down', Man, BinExp, DecExp, NbrManElem);
+    LogManExp('Shifting down', LMantissaArray, LBinExp, LDecExp, LMantissaCount);
 {$ENDIF}
 
-    if Man[NbrManElem - 1] = 0 then
-      Dec(NbrManElem);
+    if LMantissaArray[LMantissaCount - 1] = 0 then
+      Dec(LMantissaCount);
   end;
 
   { Check for zero: }
-  if NbrManElem = 0 then
+  if LMantissaCount = 0 then
   begin
     Result := AddSign(Result, ANegative);
     Exit;
@@ -266,70 +266,70 @@ begin
       Note that a multiply by 10 is same as mul. by 5 and inc of BinExp exponent.
       Also note that a multiply by 5 adds two or three bits to number of mantissa bits.
    }
-  NbrDecFraDigits := -BinExp; {Observe! 0.5, 0.25, 0.125, 0.0625, 0.03125, ...}
-  LIndex := NbrManElem + (3 * NbrDecFraDigits + BitsInBufElem - 1) div BitsInBufElem;
+  LDeximalCount := -LBinExp; {Observe! 0.5, 0.25, 0.125, 0.0625, 0.03125, ...}
+  LIndex := LMantissaCount + (3 * LDeximalCount + BitsInBufElem - 1) div BitsInBufElem;
 
-  if Length(Man) < LIndex then
-    SetLength(Man, LIndex);
+  if Length(LMantissaArray) < LIndex then
+    SetLength(LMantissaArray, LIndex);
 
 {$IFDEF DEBUG}
-  LogManExp('Prep mul out', Man, BinExp, DecExp, NbrManElem);
+  LogManExp('Prep mul out', LMantissaArray, LBinExp, LDecExp, LMantissaCount);
 {$ENDIF}
 
   LIndex := 1;
-  while LIndex <= NbrDecFraDigits do
+  while LIndex <= LDeximalCount do
   begin
-    CryE := 0;
+    LCryE := 0;
 
-    for j := 0 to NbrManElem - 1 do
-      MultiplyAndAdd(Man[j], 5, CryE, CryE, Man[j]); // MultiplyAndAdd(Multiplican, Multiplier, CryIn: tSglWord; var CryOut, Product: tSglWord);
+    for LMantissaIndex := 0 to LMantissaCount - 1 do
+      MultiplyAndAdd(LMantissaArray[LMantissaIndex], 5, LCryE, LCryE, LMantissaArray[LMantissaIndex]);
 
-    if CryE <> 0 then
+    if LCryE <> 0 then
     begin
-      Inc(NbrManElem);
-      Man[NbrManElem - 1] := CryE;
+      Inc(LMantissaCount);
+      LMantissaArray[LMantissaCount - 1] := LCryE;
     end;
 
-    Inc(BinExp);
-    Dec(DecExp);
+    Inc(LBinExp);
+    Dec(LDecExp);
 
 {$IFDEF DEBUG}
-    LogManExp('Mul out', Man, BinExp, DecExp, NbrManElem);
+    LogManExp('Mul out', LMantissaArray, LBinExp, LDecExp, LMantissaCount);
 {$ENDIF}
 
     Inc(LIndex);
   end;
 
 {$IFDEF DEBUG}
-  LogManExp('Finished multiplies', Man, BinExp, DecExp, NbrManElem);
+  LogManExp('Finished multiplies', LMantissaArray, LBinExp, LDecExp, LMantissaCount);
 {$ENDIF}
 
   { Finish reducing BinExp to 0 by shifting mantissa up: }
-  while BinExp > 0 do
+  while LBinExp > 0 do
   begin
-    Cry := 0;
+    LCry := 0;
 
-    for LIndex := 0 to NbrManElem - 1 do
+    for LIndex := 0 to LMantissaCount - 1 do
     begin
-      Tmp1.W := Man[LIndex] shl 1;
-      Man[LIndex] := Tmp1.L + Cry;
-      Cry := Tmp1.H;
+      LTempFloatParts.W := LMantissaArray[LIndex] shl 1;
+      LMantissaArray[LIndex] := LTempFloatParts.L + LCry;
+      LCry := LTempFloatParts.H;
     end;
 
-    Dec(BinExp);
+    Dec(LBinExp);
 
-    if Cry <> 0 then
+    if LCry <> 0 then
     begin
-      Inc(NbrManElem);
+      Inc(LMantissaCount);
 
-      if length(Man) < NbrManElem then
-        SetLength(Man, NbrManElem);
+      if length(LMantissaArray) < LMantissaCount then
+        SetLength(LMantissaArray, LMantissaCount);
 
-      Man[NbrManElem - 1] := Cry;
+      LMantissaArray[LMantissaCount - 1] := LCry;
     end;
 
 {$IFDEF DEBUG}
-    LogManExp('Shifting up', Man, BinExp, DecExp, NbrManElem);
+    LogManExp('Shifting up', LMantissaArray, LBinExp, LDecExp, LMantissaCount);
 {$ENDIF}
   end;
 
@@ -337,34 +337,34 @@ begin
   Result := ''; {DEBUG}
 
 {$IFDEF DEBUG}
-  LogManExp('Before division', Man, BinExp, DecExp, NbrManElem);
+  LogManExp('Before division', LMantissaArray, LBinExp, LDecExp, LMantissaCount);
 {$ENDIF}
 
   repeat
     { If not first then place separators: }
     if Result <> '' then
     begin
-      if DecExp = 0 then
+      if LDecExp = 0 then
         Result := ADecimalPoint + Result
-      else if (ADigitGroups = 5) and ((DecExp mod 5) = 0) then
+      else if (ADigitGroups = 5) and ((LDecExp mod 5) = 0) then
         Result := AThousandsSep + Result
-      else if (ADigitGroups = 3) and ((DecExp mod 3) = 0) then
+      else if (ADigitGroups = 3) and ((LDecExp mod 3) = 0) then
         Result := AThousandsSep + Result
     end;
 
     { DivideAndRemainder mantissa array by 10: }
-    CryE := 0;
+    LCryE := 0;
 
-    for LIndex := NbrManElem - 1 downto 0 do
-      DivideAndRemainder(CryE, Man[LIndex], 10, Man[LIndex], CryE); // DivideAndRemainder(NumeratorHi, NumeratorLo: Byte;  Divisor: Byte; var Quotient, Remainder: Byte): boolean;
+    for LIndex := LMantissaCount - 1 downto 0 do
+      DivideAndRemainder(LCryE, LMantissaArray[LIndex], 10, LMantissaArray[LIndex], LCryE); // DivideAndRemainder(NumeratorHi, NumeratorLo: Byte;  Divisor: Byte; var Quotient, Remainder: Byte): boolean;
 
-    Inc(DecExp);
-    c := SNativeDigits[CryE];
-    Result := c + Result;
+    Inc(LDecExp);
+    LChar := SNativeDigits[LCryE];
+    Result := LChar + Result;
 
-    if (NbrManElem > 0) and (Man[NbrManElem - 1] = 0) then
-      Dec(NbrManElem);
-  until (DecExp > 0) and (NbrManElem = 0);
+    if (LMantissaCount > 0) and (LMantissaArray[LMantissaCount - 1] = 0) then
+      Dec(LMantissaCount);
+  until (LDecExp > 0) and (LMantissaCount = 0);
 
   Result := AddSign(Result, ANegative);
 end;
@@ -408,14 +408,14 @@ end;
 function ExactFloatToStrEx(const AValue: Extended; const ADecimalPoint: string = '.'; const AThousandsSep: string = '';
   const ADigitGroups: Integer = 0): string;
 
-  function IsSpace(const s: string): Boolean;
+  function IsSpace(const AStringValue: string): Boolean;
   begin
     Result := False;
 
-    if Length(s) <> 1 then
+    if Length(AStringValue) <> 1 then
       Exit;
 
-    case Word(s[1]) of
+    case Word(AStringValue[1]) of
       $00A0, $1680, $2000, $2001, $2002, $2003, $2004, $2005,
       $2006, $2007, $2008, $2009, $200A, $202F, $205F, $3000: Result := True;
     end;
@@ -511,11 +511,11 @@ end;
 
 function ParseFloat(const AValue: Extended): string;
 var
-  ValueRec: TExtendedFloat absolute AValue;
+  LValueRec: TExtendedFloat absolute AValue;
 begin
   // This call parses an extended value to its sign, exponent, and mantissa.
-  Result := Format('Ext(Sgn="%s",Exp=$%4.4x,Man=$%16.16x)', [SIGN_ARRAY[(ValueRec.Exponent and $8000) <> 0], (ValueRec.Exponent and $7FFF),
-    ValueRec.Mantissa]);
+  Result := Format('Ext(Sgn="%s",Exp=$%4.4x,Man=$%16.16x)', [SIGN_ARRAY[(LValueRec.Exponent and $8000) <> 0], (LValueRec.Exponent and $7FFF),
+    LValueRec.Mantissa]);
 end;
 
 function ParseFloat(const AValue: Double): string;
