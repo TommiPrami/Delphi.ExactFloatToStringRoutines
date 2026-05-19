@@ -217,9 +217,9 @@ end;
 procedure TFTSDMainForm.ButtonSpecialsClick(ASender: TObject);
 const
   NanX = 0 / 0;
-  DblSgnX: Int64 = $8000000000000000; {1 bit}
-  DblExpX: Int64 = $7FF0000000000000; {11 bits}
-  DblManX: Int64 = $000FFFFFFFFFFFFF; {52 bits (+ 1 = 53)}
+  DblSgnX: Int64 = $8000000000000000; { 1 bit }
+  DblExpX: Int64 = $7FF0000000000000; { 11 bits }
+  DblManX: Int64 = $000FFFFFFFFFFFFF; { 52 bits (+ 1 = 53) }
 var
   LExtendedValue: Extended;
   LDoubleValue: Double;
@@ -228,7 +228,7 @@ var
 begin
   Screen.Cursor := crHourGlass;
   try
-    { Test infinities: }
+    { Test infinities }
     Log('');
     LExtendedRec.Exponent := $7FFF;
     LExtendedRec.Mantissa := $0000000000000000;
@@ -237,7 +237,7 @@ begin
     LExtendedRec.Mantissa := $0000000000000000;
     Log('-Inf response = ' + ExactFloatToStr(LExtendedValue));
 
-    { Test indefinite: }
+    { Test indefinite }
     Log('');
     LExtendedValue := NanX;
     LogFmt('Exp=$%4.4x, Man=$%16.16x',[LExtendedRec.Exponent, LExtendedRec.Mantissa]);
@@ -248,7 +248,7 @@ begin
     LogFmt('Ext: Exp=$%4.4x, Man=$%16.16x',[LExtendedRec.Exponent, LExtendedRec.Mantissa]);
     Log('Indefinite dbl rsp. = ' + ExactFloatToStr(LExtendedValue));
 
-    { Test QNANs: }
+    { Test QNANs }
     Log('');
     LExtendedRec.Exponent := $7FFF;
     LExtendedRec.Mantissa := Int64($C100000000000000);
@@ -301,7 +301,6 @@ var
   LDoubleValue: Double;
   LSingleValue: Single;
   LIndex: Integer;
-  { Equivalence a record to var ext: }
   LExtendedRec: TExtendedFloat absolute LExtendedValue1;
   LDoubleAsInt64: Int64 absolute LDoubleValue;
   LSingleAsLongInt: LongInt absolute LSingleValue;
@@ -325,7 +324,7 @@ begin
           Log('');
           Log('Check crossover into LSingleValue denormal.');
 
-          { Set ext = 2 * <single normal minimum>: }
+          { Set ext = 2 * <single normal minimum> }
           LSingleAsLongInt := LongInt(2) shl 23;
           LExtendedValue1 := LSingleValue;
         end;
@@ -333,7 +332,7 @@ begin
           Log('');
           Log('Check crossover into LDoubleValue denormal.');
 
-          { Set ext = 2 * <double normal minimum>: }
+          { Set ext = 2 * <double normal minimum> }
           LDoubleAsInt64 := Int64(2) shl 52;
           s := ParseFloat(LDoubleValue);
           LExtendedValue1 := LDoubleValue;
@@ -343,7 +342,7 @@ begin
           Log('');
           Log('Check crossover into ext denormal.');
 
-          { Set ext = 2 * <extended normal minimum>: }
+          { Set ext = 2 * <extended normal minimum> }
           LExtendedRec.Exponent := 2;
           LExtendedRec.Mantissa := $8000000000000000;
         end;
@@ -352,13 +351,13 @@ begin
           Log('');
           Log('Check cross over into zero.');
 
-          { Set ext = 2 * <external denormal minimum>: }
+          { Set ext = 2 * <external denormal minimum> }
           LExtendedRec.Exponent := 0;
           LExtendedRec.Mantissa := $0000000000000002;
         end;
       else
       begin
-        { Divide the number to be analyzed by 2: }
+        { Divide the number to be analyzed by 2 }
         LExtendedValue1 := LExtendedValue1 / 2;
         Log('Divide by 2 and check', 1);
       end;
@@ -367,11 +366,11 @@ begin
     LDoubleValue := LExtendedValue1;
     LSingleValue := LExtendedValue1;
 
-    { Set ext2 to same ext value times 10^4900: }
+    { Set ext2 to same ext value times 10^4900 }
     LExtendedValue2 := LExtendedValue1 * 1e4900;
 
     { log analysis }
-    Log(Format('%2.2d: Nbr=%g ((Nbr x 1e4900)=%g)',[LIndex, LExtendedValue1, LExtendedValue2]), 1);
+    Log(Format('%2.2d: Nbr=%g ((Nbr x 1e4900)=%g)', [LIndex, LExtendedValue1, LExtendedValue2]), 1);
     Log(ParseFloat(LExtendedValue1) + ' ' + ParseFloat(LDoubleValue) + ' ' + ParseFloat(LSingleValue), 1);
   end;
 end;
