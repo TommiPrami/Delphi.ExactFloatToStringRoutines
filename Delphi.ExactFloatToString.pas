@@ -33,8 +33,22 @@
 interface
 
 uses
-  SysUtils, Winapi.Windows;
+  System.SysUtils;
 
+type
+  TSglWord = Word;     //Consider Byte or Word
+  TDblWord = LongWord; //Consider Word or LongWord
+
+  TExtendedFloat = packed record
+    Mantissa: Int64;
+    Exponent: Word;  //Sign and Exponent
+  end;
+
+  TFloatParts = packed record
+    case byte of
+      0: (W: TDblWord);
+      1: (L, H: TSglWord);
+    end;
 
   { This call uses the global DecimalSeparator and ThousandSeparator. It can be slow for very large or very small
     extended numbers.) }
@@ -70,18 +84,12 @@ const
 *)
 
 var
-  LogFmtX: procedure(const AFormat: string; const AData: array of const) of object;
+  LogFmtX: procedure(const AFormat: string; const AData: array of const; const AIndent: Integer = 0) of object;
 
 implementation
 
-type
-  TSglWord = Word;     //Consider Byte or Word
-  TDblWord = LongWord; //Consider Word or LongWord
-
-  TExtendedFloat = packed record
-    Man: Int64; //Mantissa
-    Exp: Word; //Sign and Exponent
-  end;
+uses
+  Winapi.Windows;
 
 const
 //  SizeOfAryElem = SizeOf(TSglWord);
@@ -97,20 +105,16 @@ var
   SGrouping:     string =              '3;0';        // LOCALE_SGROUPING
 
 {$IFDEF DEBUG}
-procedure LogFmt(const Fmt: string; const Data: array of const);
+procedure LogFmt(const AFormat: string; const AData: array of const; const AIndent: Integer = 0);
 begin
   if Assigned(LogFmtX) then
-    LogFmtX(Fmt, Data);
+    LogFmtX(AFormat, AData, AIndent);
 end;
 {$ENDIF}
 
 procedure MultiplyAndAdd(Multiplican, Multiplier, CarryIn: TSglWord; var CarryOut, Product: TSglWord);
 var
-  Tmp: packed record
-    case byte of
-      0: (W: TDblWord);
-      1: (L, H: TSglWord);
-    end;
+  Tmp: TFloatParts;
 begin
   Tmp.W := Multiplican * Multiplier + CarryIn;
   CarryOut := Tmp.H;
@@ -119,13 +123,10 @@ end;
 
 function DivideAndRemainder(NumeratorHi, NumeratorLo: TSglWord; Divisor: TSglWord; var Quotient, Remainder: TSglWord): Boolean;
 var
-  Tmp1, Tmp2: packed record
-    case byte of
-      0: (W: TDblWord);
-      1: (L, H: TSglWord);
-    end;
+  Tmp1: TFloatParts;
+  Tmp2: TFloatParts;
 begin
-  Result := (Divisor <> 0);
+  Result := Divisor <> 0;
 
   if Result then
   begin
@@ -181,8 +182,8 @@ end;
 
 function FloatingBinPointToDecStr(const AValue; const AValNbrBits, AValBinExp: Integer; const ANegative: Boolean;
     const ADecimalPoint: string = '.'; const AThousandsSep: string = ''; const ADigitGroups: Integer = 0): string;
-{$IFDEF DEBUG}
 
+{$IFDEF DEBUG}
   procedure LogManExp(const ARem: string; const AMan: array of TSglWord; const ABinExp, ADecExp, ANbrManElem: Integer);
   var
     s: string;
@@ -194,7 +195,7 @@ function FloatingBinPointToDecStr(const AValue; const AValNbrBits, AValBinExp: I
     for k := 0 to ANbrManElem - 1 do
       s := Format(' %2.2x', [AMan[k]]) + s;
 
-    LogFmt('  %s', [s]);
+    LogFmt('%s', [s], 1);
   end;
 {$ENDIF}
 
@@ -206,11 +207,11 @@ var
   BinExp: Integer; // neg of # binary fraction bits
   DecExp: Integer; // neg of # decimal fraction bits
   NbrDecFraDigits: Integer;
-  LIndex: integer;
-  j: integer;
-  Tmp: integer;
+  LIndex: Integer;
+  j: Integer;
+  Tmp: Integer;
   c: Char;
-  Tmp1: packed record case byte of 0: (W: TDblWord); 1: (L, H: TSglWord); end;
+  Tmp1: TFloatParts;
 begin
   {
     Value = Mantissa * 2^BinExp * 10^DecExp
@@ -370,9 +371,9 @@ procedure AnalyzeFloat(const AValue: Extended; var ANumberType: TTypeFloat; var 
 var
   ValueRec: TExtendedFloat absolute AValue;
 begin
-  AMantissa := ValueRec.Man;
-  ANegative := (ValueRec.Exp and $8000) <> 0;
-  AExponent := (ValueRec.Exp and $7FFF);
+  AMantissa := ValueRec.Mantissa;
+  ANegative := (ValueRec.Exponent and $8000) <> 0;
+  AExponent := (ValueRec.Exponent and $7FFF);
 
   if AExponent = $7FFF then
   begin
@@ -382,7 +383,7 @@ begin
     begin
       AMantissa := (AMantissa and $3FFFFFFFFFFFFFFF);
 
-      if ((ValueRec.Man and $4000000000000000) = 0) then
+      if ((ValueRec.Mantissa and $4000000000000000) = 0) then
         ANumberType := tfSignalingNan
       else if (AMantissa = 0) then
         ANumberType := tfIndefinite
@@ -512,8 +513,8 @@ var
   ValueRec: TExtendedFloat absolute AValue;
 begin
   // This call parses an extended value to its sign, exponent, and mantissa.
-  Result := Format('Ext(Sgn="%s",Exp=$%4.4x,Man=$%16.16x)', [PN[(ValueRec.Exp and $8000) <> 0], (ValueRec.Exp and $7FFF),
-    ValueRec.Man]);
+  Result := Format('Ext(Sgn="%s",Exp=$%4.4x,Man=$%16.16x)', [PN[(ValueRec.Exponent and $8000) <> 0], (ValueRec.Exponent and $7FFF),
+    ValueRec.Mantissa]);
 end;
 
 function ParseFloat(const AValue: Double): string;
