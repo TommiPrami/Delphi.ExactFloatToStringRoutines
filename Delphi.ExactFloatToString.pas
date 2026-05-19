@@ -36,12 +36,12 @@ uses
   System.SysUtils;
 
 type
-  TSglWord = Word;     //Consider Byte or Word
-  TDblWord = LongWord; //Consider Word or LongWord
+  TSglWord = Word;     // Consider Byte or Word
+  TDblWord = LongWord; // Consider Word or LongWord
 
   TExtendedFloat = packed record
     Mantissa: Int64;
-    Exponent: Word;  //Sign and Exponent
+    Exponent: Word;  // Sign and Exponent
   end;
 
   TFloatParts = packed record
@@ -92,7 +92,6 @@ uses
   Winapi.Windows;
 
 const
-//  SizeOfAryElem = SizeOf(TSglWord);
   BitsInBufElem = SizeOf(TSglWord) * 8; // SizeOfAryElem*8;
 
 var
@@ -222,7 +221,7 @@ begin
   { Load Mantissa and binary exponent: }
   LMantissaCount := (AValNbrBits + BitsInBufElem - 1) div BitsInBufElem;
   SetLength(LMantissaArray, LMantissaCount);
-  Move(AValue, LMantissaArray[0], (AValNbrBits + 7) div 8); {Assuming little endian input}
+  Move(AValue, LMantissaArray[0], (AValNbrBits + 7) div 8); { Assuming little endian input }
 
   { Set exponents: (Value = Mantissa * 2^BinExp * 10^DecExp) }
   LBinExp := AValBinExp;
@@ -266,7 +265,7 @@ begin
       Note that a multiply by 10 is same as mul. by 5 and inc of BinExp exponent.
       Also note that a multiply by 5 adds two or three bits to number of mantissa bits.
    }
-  LDeximalCount := -LBinExp; {Observe! 0.5, 0.25, 0.125, 0.0625, 0.03125, ...}
+  LDeximalCount := -LBinExp; { Observe! 0.5, 0.25, 0.125, 0.0625, 0.03125, ... }
   LIndex := LMantissaCount + (3 * LDeximalCount + BitsInBufElem - 1) div BitsInBufElem;
 
   if Length(LMantissaArray) < LIndex then
@@ -333,8 +332,8 @@ begin
 {$ENDIF}
   end;
 
-   { Repeatably divide by 10 and use remainders to create decimal AnsiString: }
-  Result := ''; {DEBUG}
+   { Repeatably divide by 10 and use remainders to create decimal string }
+  Result := '';
 
 {$IFDEF DEBUG}
   LogManExp('Before division', LMantissaArray, LBinExp, LDecExp, LMantissaCount);
@@ -438,7 +437,7 @@ begin
 }
   AnalyzeFloat(AValue, LNumberType, LNegative, LExponent, LMantissa);
 
-  //Convert legacy #0 char to an actual empty string.
+  // Convert legacy #0 char to an actual empty string.
   if AThousandsSep = #0 then
     LThousandsSeparator := ''
   else
