@@ -1,4 +1,4 @@
-program Delphi.ExactFloatToStringTests;
+﻿program Delphi.ExactFloatToStringTests;
 
 {$IFNDEF TESTINSIGHT}
 {$APPTYPE CONSOLE}

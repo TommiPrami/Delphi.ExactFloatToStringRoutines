@@ -1,4 +1,4 @@
-unit EFTSDForm.FloatTester.Extended;
+﻿unit EFTSDForm.FloatTester.Extended;
 
 (* *****************************************************************************
 

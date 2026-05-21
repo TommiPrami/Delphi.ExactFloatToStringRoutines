@@ -1,4 +1,4 @@
-unit Tests.Delphi.ExactFloatToString;
+﻿unit Tests.Delphi.ExactFloatToString;
 
 interface
 

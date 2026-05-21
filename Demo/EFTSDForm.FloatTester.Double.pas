@@ -1,4 +1,4 @@
-unit EFTSDForm.FloatTester.Double;
+﻿unit EFTSDForm.FloatTester.Double;
 
 (* *****************************************************************************
 
