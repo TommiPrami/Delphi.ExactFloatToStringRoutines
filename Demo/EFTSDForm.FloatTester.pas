@@ -73,6 +73,7 @@ uses
 constructor TFloatTester.Create(const ALog: TLogProc; const ALogFmt: TLogFmtProc);
 begin
   inherited Create;
+
   FLog := ALog;
   FLogFmt := ALogFmt;
 end;

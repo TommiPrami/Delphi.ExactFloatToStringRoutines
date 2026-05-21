@@ -36,8 +36,7 @@ implementation
 {$IFDEF WIN32}
 
 uses
-  System.SysUtils,
-  Delphi.ExactFloatToString;
+  System.SysUtils, Delphi.ExactFloatToString;
 
 procedure TExtendedFloatTester.TestNumber(const AValue: Extended);
 var

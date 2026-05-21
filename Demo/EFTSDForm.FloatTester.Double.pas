@@ -34,8 +34,7 @@ implementation
 {$IFDEF CPUX64}
 
 uses
-  System.SysUtils,
-  Delphi.ExactFloatToString;
+  System.SysUtils, Delphi.ExactFloatToString;
 
 const
   // Double's smallest positive normal is ~2.225e-308. Below this threshold we scale
@@ -43,9 +42,9 @@ const
   DENORMAL_THRESHOLD = 1e-300;
   DENORMAL_SCALE     = 1e300;
 
-procedure TDoubleFloatTester.TestNumber(const AValue: Extended);
 // On Win64 Extended IS Double, so overlaying TDoubleRecord on AValue gives us the
 // 64-bit IEEE-754 bit pattern directly.
+procedure TDoubleFloatTester.TestNumber(const AValue: Extended);
 var
   LDoubleRec: TDoubleRecord absolute AValue;
   LExponent: Cardinal;
