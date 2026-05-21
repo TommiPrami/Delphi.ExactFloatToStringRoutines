@@ -30,6 +30,18 @@
 { Turn DEBUG on to make available detail debugging at expense of speed.}
 {.$DEFINE DEBUG}
 
+{
+  Define EXACT_FLOAT_TO_STRING_USE_OS_LOCALE to let the unit pull SPositiveSign,
+  SNegativeSign, SPosInfinity, SNegInfinity, SGrouping, INegNumber and the native digits
+  from the Windows user locale at unit init.
+
+  Default (define commented out) keeps the hard-coded English-style strings ("+", "-",
+  "Infinity", "-Infinity", "0..9", grouping "3;0", INegNumber=1). That makes the output
+  deterministic across machines, which is normally what callers of an *exact* float
+  converter want.
+}
+{.$DEFINE EXACT_FLOAT_TO_STRING_USE_OS_LOCALE}
+
 interface
 
 uses
@@ -39,10 +51,14 @@ type
   TSglWord = Word;     // Consider Byte or Word
   TDblWord = LongWord; // Consider Word or LongWord
 
+{$IFDEF WIN32}
+  // 80-bit Extended layout. Only meaningful on Win32 where Extended is a 10-byte type.
+  // On Win64 (and other targets where Extended aliases Double) this record is invalid.
   TExtendedFloat = packed record
     Mantissa: Int64;
     Exponent: Word;  // Sign and Exponent
   end;
+{$ENDIF}
 
   TFloatParts = packed record
     case Byte of
@@ -50,16 +66,28 @@ type
       1: (L, H: TSglWord);
     end;
 
+{$IFDEF WIN32}
   { This call uses the global DecimalSeparator and ThousandSeparator. It can be slow for very large or very small
-    extended numbers.) }
+    extended numbers. }
   function ExactFloatToStr(const AValue: Extended): string; overload; inline;
   function ExactFloatToStr(const AValue: Extended; const AFormatSettings: TFormatSettings): string; overload;
   function ExactFloatToStrEx(const AValue: Extended; const ADecimalPoint: string = '.'; const AThousandsSep: string = '';
     const ADigitGroups: Integer = 0): string;
+{$ENDIF}
 
+{$IFDEF CPUX64}
+  { 64-bit-platform overloads. On Win64 Extended aliases Double, so we cannot have an Extended
+    overload alongside Double — these stand in for the Win32 Extended functions. }
+  function ExactFloatToStr(const AValue: Double): string; overload; inline;
+  function ExactFloatToStr(const AValue: Double; const AFormatSettings: TFormatSettings): string; overload;
+  function ExactFloatToStrEx(const AValue: Double; const ADecimalPoint: string = '.'; const AThousandsSep: string = '';
+    const ADigitGroups: Integer = 0): string;
+{$ENDIF}
 
   // These calls parse a float value to its sign, exponent, and mantissa.
+{$IFDEF WIN32}
   function ParseFloat(const AValue: Extended): string; overload;
+{$ENDIF}
   function ParseFloat(const AValue: Double): string; overload;
   function ParseFloat(const AValue: Single): string; overload;
 
@@ -70,8 +98,12 @@ type
 type
   TTypeFloat = (tfUnknown, tfNormal, tfZero, tfDenormal, tfIndefinite, tfInfinity, tfQuietNan, tfSignalingNan);
 
+{$IFDEF WIN32}
   procedure AnalyzeFloat(const AValue: Extended; var ANumberType: TTypeFloat; var ANegative: Boolean; var AExponent: Word;
-    var AMantissa: Int64);
+    var AMantissa: Int64); overload;
+{$ENDIF}
+  procedure AnalyzeFloat(const AValue: Double; var ANumberType: TTypeFloat; var ANegative: Boolean; var AExponent: Word;
+    var AMantissa: Int64); overload;
 
 (*
 const
@@ -88,8 +120,10 @@ var
 
 implementation
 
+{$IFDEF EXACT_FLOAT_TO_STRING_USE_OS_LOCALE}
 uses
   Winapi.Windows;
+{$ENDIF}
 
 const
   BitsInBufElem = SizeOf(TSglWord) * 8; // SizeOfAryElem*8;
@@ -116,33 +150,28 @@ procedure MultiplyAndAdd(const AMultiplican, AMultiplier, ACarryIn: TSglWord; va
 var
   LTmp: TFloatParts;
 begin
-  LTmp.W := AMultiplican * AMultiplier + ACarryIn;
+  // Cast to TDblWord so the product cannot overflow Int32 when {$Q+} is active.
+  LTmp.W := TDblWord(AMultiplican) * AMultiplier + ACarryIn;
 
   ACarryOut := LTmp.H;
   AProduct := LTmp.L;
 end;
 
-function DivideAndRemainder(const ANumeratorHi, ANumeratorLo: TSglWord; const ADivisor: TSglWord; var AQuotient, ARemainder: TSglWord): Boolean;
+procedure DivideAndRemainder(const ANumeratorHi, ANumeratorLo: TSglWord; const ADivisor: TSglWord; var AQuotient, ARemainder: TSglWord);
 var
-  LTmp1: TFloatParts;
-  LTmp2: TFloatParts;
+  LNumerator: TFloatParts;
+  LQuotient: TDblWord;
 begin
-  Result := ADivisor <> 0;
+  Assert(ADivisor <> 0, 'DivideAndRemainder: division by zero');
 
-  if Result then
-  begin
-    LTmp1.H := ANumeratorHi;
-    LTmp1.L := ANumeratorLo;
-    LTmp2.W := LTmp1.W div ADivisor;
+  LNumerator.H := ANumeratorHi;
+  LNumerator.L := ANumeratorLo;
 
-    if LTmp2.H <> 0 then
-      Result := False
-    else
-    begin
-      AQuotient := LTmp2.L;
-      ARemainder := LTmp1.W mod ADivisor;
-    end;
-  end;
+  LQuotient := LNumerator.W div ADivisor;
+  Assert(LQuotient <= High(TSglWord), 'DivideAndRemainder: quotient does not fit in TSglWord');
+
+  AQuotient := TSglWord(LQuotient);
+  ARemainder := TSglWord(LNumerator.W mod ADivisor);
 end;
 
 function AddSign(const AStringValue: string; const AIsNegative: Boolean): string;
@@ -170,11 +199,11 @@ begin
   else
   begin
     case INegNumber of
-      0: Result := AStringValue;                       // "(1.1)"
-      1: Result := SPositiveSign + AStringValue;       // "-1.1"
-      2: Result := SPositiveSign + ' ' + AStringValue; // "- 1.1"
-      3: Result := AStringValue + SPositiveSign;       // "1.1-"
-      4: Result := AStringValue + ' ' + SPositiveSign; // "1.1 -"
+      0: Result := AStringValue;                       // "1.1"
+      1: Result := SPositiveSign + AStringValue;       // "+1.1"
+      2: Result := SPositiveSign + ' ' + AStringValue; // "+ 1.1"
+      3: Result := AStringValue + SPositiveSign;       // "1.1+"
+      4: Result := AStringValue + ' ' + SPositiveSign; // "1.1 +"
       else
         Result := SPositiveSign + AStringValue;
     end;
@@ -207,10 +236,10 @@ var
   LMantissaCount: Integer;
   LBinExp: Integer; // neg of # binary fraction bits
   LDecExp: Integer; // neg of # decimal fraction bits
-  LDeximalCount: Integer;
+  LDecimalCount: Integer;
   LIndex: Integer;
   LMantissaIndex: Integer;
-  LTmpInt: Integer;
+  LTmpInt: TDblWord;
   LChar: Char;
   LTempFloatParts: TFloatParts;
 begin
@@ -239,7 +268,7 @@ begin
     for LIndex := LMantissaCount - 1 downto 0 do
     begin
       LTmpInt := (LCry shl BitsInBufElem) or LMantissaArray[LIndex];
-      LMantissaArray[LIndex] := (LTmpInt shr 1);
+      LMantissaArray[LIndex] := TSglWord(LTmpInt shr 1);
       LCry := LTmpInt and 1;
     end;
 
@@ -256,7 +285,7 @@ begin
   { Check for zero: }
   if LMantissaCount = 0 then
   begin
-    Result := AddSign(Result, ANegative);
+    Result := AddSign('0', ANegative);
     Exit;
   end;
 
@@ -265,8 +294,8 @@ begin
       Note that a multiply by 10 is same as mul. by 5 and inc of BinExp exponent.
       Also note that a multiply by 5 adds two or three bits to number of mantissa bits.
    }
-  LDeximalCount := -LBinExp; { Observe! 0.5, 0.25, 0.125, 0.0625, 0.03125, ... }
-  LIndex := LMantissaCount + (3 * LDeximalCount + BitsInBufElem - 1) div BitsInBufElem;
+  LDecimalCount := -LBinExp; { Observe! 0.5, 0.25, 0.125, 0.0625, 0.03125, ... }
+  LIndex := LMantissaCount + (3 * LDecimalCount + BitsInBufElem - 1) div BitsInBufElem;
 
   if Length(LMantissaArray) < LIndex then
     SetLength(LMantissaArray, LIndex);
@@ -276,7 +305,7 @@ begin
 {$ENDIF}
 
   LIndex := 1;
-  while LIndex <= LDeximalCount do
+  while LIndex <= LDecimalCount do
   begin
     LCryE := 0;
 
@@ -355,7 +384,7 @@ begin
     LCryE := 0;
 
     for LIndex := LMantissaCount - 1 downto 0 do
-      DivideAndRemainder(LCryE, LMantissaArray[LIndex], 10, LMantissaArray[LIndex], LCryE); // DivideAndRemainder(NumeratorHi, NumeratorLo: Byte;  Divisor: Byte; var Quotient, Remainder: Byte): boolean;
+      DivideAndRemainder(LCryE, LMantissaArray[LIndex], 10, LMantissaArray[LIndex], LCryE);
 
     Inc(LDecExp);
     LChar := SNativeDigits[LCryE];
@@ -368,6 +397,7 @@ begin
   Result := AddSign(Result, ANegative);
 end;
 
+{$IFDEF WIN32}
 procedure AnalyzeFloat(const AValue: Extended; var ANumberType: TTypeFloat; var ANegative: Boolean; var AExponent: Word;
   var AMantissa: Int64);
 var
@@ -403,23 +433,99 @@ begin
   else
     ANumberType := tfNormal;
 end;
+{$ENDIF}
 
-function ExactFloatToStrEx(const AValue: Extended; const ADecimalPoint: string = '.'; const AThousandsSep: string = '';
-  const ADigitGroups: Integer = 0): string;
+procedure AnalyzeFloat(const AValue: Double; var ANumberType: TTypeFloat; var ANegative: Boolean; var AExponent: Word;
+  var AMantissa: Int64);
+const
+  DBL_SIGN_MASK    = Int64($8000000000000000); // bit 63
+  DBL_EXPONENT_MASK     = Int64($7FF0000000000000); // bits 62..52
+  DBL_FRACTION_MASK     = Int64($000FFFFFFFFFFFFF); // bits 51..0
+  DBL_QUIET_BIT    = Int64($0008000000000000); // bit 51 (MSB of fraction): 1 = QNaN, 0 = SNaN
+  DBL_NAN_PAYLOAD_MASK  = Int64($0007FFFFFFFFFFFF); // bits 50..0
+var
+  LBits: Int64 absolute AValue;
+begin
+  AMantissa := LBits and DBL_FRACTION_MASK;
+  ANegative := (LBits and DBL_SIGN_MASK) <> 0;
+  AExponent := (LBits and DBL_EXPONENT_MASK) shr 52;
 
-  function IsSpace(const AStringValue: string): Boolean;
+  if AExponent = $7FF then
   begin
-    Result := False;
+    if AMantissa = 0 then
+      ANumberType := tfInfinity
+    else if (LBits and DBL_QUIET_BIT) = 0 then
+      ANumberType := tfSignalingNan
+    else if (AMantissa and DBL_NAN_PAYLOAD_MASK) = 0 then
+      ANumberType := tfIndefinite
+    else
+      ANumberType := tfQuietNan;
+  end
+  else if AExponent = 0 then
+  begin
+    if AMantissa = 0 then
+      ANumberType := tfZero
+    else
+      ANumberType := tfDenormal;
+  end
+  else
+    ANumberType := tfNormal;
+end;
 
-    if Length(AStringValue) <> 1 then
-      Exit;
+function IsUnicodeSpace(const AStringValue: string): Boolean;
+begin
+  Result := False;
 
-    case Word(AStringValue[1]) of
-      $00A0, $1680, $2000, $2001, $2002, $2003, $2004, $2005,
-      $2006, $2007, $2008, $2009, $200A, $202F, $205F, $3000: Result := True;
+  if Length(AStringValue) <> 1 then
+    Exit;
+
+  case Word(AStringValue[1]) of
+    $00A0, $1680, $2000, $2001, $2002, $2003, $2004, $2005,
+    $2006, $2007, $2008, $2009, $200A, $202F, $205F, $3000: Result := True;
+  end;
+end;
+
+function ResolveDigitGroups(const AThousandsSep: string; const ADigitGroups: Integer): Integer;
+begin
+  // If a ThousandsSeparator is present, but the DigitGroups parameter is zero, then auto-guess grouping
+  // (Because why else would you specify a separator if you didn't want one)
+  if (ADigitGroups = 0) and (AThousandsSep <> '') then
+  begin
+    if IsUnicodeSpace(AThousandsSep) then
+      Result := 5
+    else
+      Result := 3;
+  end
+  else
+    Result := ADigitGroups;
+end;
+
+function ReadGroupingFromLocale: Integer;
+begin
+  {
+    Handling groups is fairly difficult.
+
+      Specification  Resulting string
+      3;0            3,000,000,000,000
+      3;2;0          30,00,00,00,00,000
+      3              3000000000,000
+      3;2            30000000,00,000
+
+    We'll just read the first digit
+  }
+  Result := 0;
+
+  if SGrouping <> '' then
+  begin
+    case SGrouping[1] of
+      '0'..'9': Result := Ord(SGrouping[1]) - Ord('0');
     end;
   end;
+end;
 
+{$IFDEF WIN32}
+function ExactFloatToStrEx(const AValue: Extended; const ADecimalPoint: string = '.'; const AThousandsSep: string = '';
+  const ADigitGroups: Integer = 0): string;
 var
   LNumberType: TTypeFloat;
   LNegative: Boolean;
@@ -443,17 +549,7 @@ begin
   else
     LThousandsSeparator := AThousandsSep;
 
-  // If a ThousandsSeparator is present, but the DigitGroups parameter is zero, then auto-guess grouping
-  // (Because why else would you specify a separator if you didn't want one)
-  if (ADigitGroups = 0) and (LThousandsSeparator <> '') then
-  begin
-    if IsSpace(LThousandsSeparator) then
-      L0DigitGroups := 5
-    else
-      L0DigitGroups := 3;
-  end
-  else
-    L0DigitGroups := ADigitGroups;
+  L0DigitGroups := ResolveDigitGroups(LThousandsSeparator, ADigitGroups);
 
   case LNumberType of
     tfNormal:       Result := FloatingBinPointToDecStr(LMantissa, 64, (LExponent - BIAS) - 63, LNegative, ADecimalPoint,
@@ -467,9 +563,9 @@ begin
     tfInfinity:
       begin
         if LNegative then
-          Result := SPosInfinity
+          Result := SNegInfinity
         else
-          Result := SNegInfinity;
+          Result := SPosInfinity;
       end;
     else
       Result := 'UnknownNumberType';
@@ -481,31 +577,15 @@ begin
   Result := ExactFloatToStr(AValue, FormatSettings);
 end;
 
-function ExactFloatToStr(const AValue: Extended; const AFormatSettings: TFormatSettings): string; overload;
-var
-  LDigitGroups: Integer;
+function ExactFloatToStr(const AValue: Extended; const AFormatSettings: TFormatSettings): string;
 begin
 {
-    Handling groups is fairly difficult.
-
-      Specification  Resulting string
-      3;0            3,000,000,000,000
-      3;2;0          30,00,00,00,00,000
-      3              3000000000,000
-      3;2            30000000,00,000
-
-    We'll just read the first digit
+    NOTE: Only AFormatSettings.DecimalSeparator and AFormatSettings.ThousandSeparator are honored.
+    TFormatSettings does not carry a digit-grouping pattern, so the group size is taken from the
+    module-level SGrouping variable (populated from the OS locale in InitFormatSettings).
 }
-  LDigitGroups := 0;
-
-  if SGrouping <> '' then
-  begin
-    case SGrouping[1] of
-      '0'..'9': LDigitGroups := Ord(SGrouping[1]) - Ord('0');
-    end;
-  end;
-
-  Result := ExactFloatToStrEx(AValue, AFormatSettings.DecimalSeparator, AFormatSettings.ThousandSeparator, LDigitGroups);
+  Result := ExactFloatToStrEx(AValue, AFormatSettings.DecimalSeparator, AFormatSettings.ThousandSeparator,
+    ReadGroupingFromLocale);
 end;
 
 function ParseFloat(const AValue: Extended): string;
@@ -516,6 +596,72 @@ begin
   Result := Format('Ext(Sgn="%s",Exp=$%4.4x,Man=$%16.16x)', [SIGN_ARRAY[(LValueRec.Exponent and $8000) <> 0], (LValueRec.Exponent and $7FFF),
     LValueRec.Mantissa]);
 end;
+{$ENDIF}
+
+{$IFDEF CPUX64}
+function ExactFloatToStrEx(const AValue: Double; const ADecimalPoint: string = '.'; const AThousandsSep: string = '';
+  const ADigitGroups: Integer = 0): string;
+var
+  LNumberType: TTypeFloat;
+  LNegative: Boolean;
+  LExponent: Word;
+  LMantissa: Int64;
+  LFullMantissa: Int64;
+  LThousandsSeparator: string;
+  L0DigitGroups: Integer;
+const
+  BIAS = $3FF;                              // Double's exponent bias
+  DBL_IMPLICIT_INTEGER_BIT = Int64($0010000000000000); // bit 52 (the implicit "1" for normals)
+begin
+  AnalyzeFloat(AValue, LNumberType, LNegative, LExponent, LMantissa);
+
+  if AThousandsSep = #0 then
+    LThousandsSeparator := ''
+  else
+    LThousandsSeparator := AThousandsSep;
+
+  L0DigitGroups := ResolveDigitGroups(LThousandsSeparator, ADigitGroups);
+
+  case LNumberType of
+    tfNormal:
+      begin
+        // Reconstruct the full 53-bit mantissa by OR-ing the implicit leading 1 back in.
+        LFullMantissa := LMantissa or DBL_IMPLICIT_INTEGER_BIT;
+        // Value = mantissa * 2^(exp - BIAS - 52)
+        Result := FloatingBinPointToDecStr(LFullMantissa, 53, (LExponent - BIAS) - 52, LNegative, ADecimalPoint,
+          LThousandsSeparator, L0DigitGroups);
+      end;
+    tfDenormal:
+      // Denormal: no implicit bit, effective exponent = 1 - BIAS = -1022. Value = mantissa * 2^(-1022-52).
+      Result := FloatingBinPointToDecStr(LMantissa, 52, (-BIAS - 51), LNegative, ADecimalPoint,
+        LThousandsSeparator, L0DigitGroups);
+    tfQuietNan:     Result := Format('QNaN(%d)', [LMantissa]);
+    tfSignalingNan: Result := Format('SNaN(%d)', [LMantissa]);
+    tfZero:         Result := AddSign('0', LNegative);
+    tfIndefinite:   Result := 'Indefinite';
+    tfInfinity:
+      begin
+        if LNegative then
+          Result := SNegInfinity
+        else
+          Result := SPosInfinity;
+      end;
+    else
+      Result := 'UnknownNumberType';
+  end;
+end;
+
+function ExactFloatToStr(const AValue: Double): string;
+begin
+  Result := ExactFloatToStr(AValue, FormatSettings);
+end;
+
+function ExactFloatToStr(const AValue: Double; const AFormatSettings: TFormatSettings): string;
+begin
+  Result := ExactFloatToStrEx(AValue, AFormatSettings.DecimalSeparator, AFormatSettings.ThousandSeparator,
+    ReadGroupingFromLocale);
+end;
+{$ENDIF}
 
 function ParseFloat(const AValue: Double): string;
 var
@@ -535,6 +681,7 @@ begin
     ((LValueRec and $7F800000) shr 23), (LValueRec and $007FFFFF)]);
 end;
 
+{$IFDEF EXACT_FLOAT_TO_STRING_USE_OS_LOCALE}
 procedure InitFormatSettings;
 const
   //Windows Vista
@@ -566,5 +713,6 @@ end;
 
 initialization
   InitFormatSettings;
+{$ENDIF}
 
 end.
