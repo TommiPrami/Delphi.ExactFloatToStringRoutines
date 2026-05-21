@@ -127,6 +127,9 @@
         <DCCReference Include="EFTSDForm.Main.pas">
             <Form>EFTSDMainForm</Form>
         </DCCReference>
+        <DCCReference Include="EFTSDForm.FloatTester.pas"/>
+        <DCCReference Include="EFTSDForm.FloatTester.Extended.pas"/>
+        <DCCReference Include="EFTSDForm.FloatTester.Double.pas"/>
         <DCCReference Include="..\Delphi.ExactFloatToString.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>

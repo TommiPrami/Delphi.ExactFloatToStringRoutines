@@ -60,6 +60,15 @@ type
   end;
 {$ENDIF}
 
+  // 64-bit Double bit-reinterpretation overlay (IEEE-754 binary64).
+  // Layout in AsInt64: sign (bit 63) | exponent (bits 62..52, bias 1023) | fraction (bits 51..0).
+  // Available on all platforms (Double is 8 bytes everywhere).
+  TDoubleRecord = packed record
+    case Byte of
+      0: (AsDouble: Double);
+      1: (AsInt64: Int64);
+  end;
+
   TFloatParts = packed record
     case Byte of
       0: (W: TDblWord);
@@ -409,7 +418,10 @@ begin
 
   if AExponent = $7FFF then
   begin
-    if (AMantissa = 0) then
+    // Infinity = exponent all 1s, all 63 fraction bits zero. The explicit integer bit
+    // (bit 63) may be 0 (pseudo-infinity, invalid on modern x87 but accepted for legacy)
+    // or 1 (canonical x87 Infinity — what FLD produces when promoting a Double Inf).
+    if (AMantissa and $7FFFFFFFFFFFFFFF) = 0 then
       ANumberType := tfInfinity
     else
     begin
@@ -438,23 +450,23 @@ end;
 procedure AnalyzeFloat(const AValue: Double; var ANumberType: TTypeFloat; var ANegative: Boolean; var AExponent: Word;
   var AMantissa: Int64);
 const
-  DBL_SIGN_MASK    = Int64($8000000000000000); // bit 63
+  DBL_SIGN_MASK         = Int64($8000000000000000); // bit 63
   DBL_EXPONENT_MASK     = Int64($7FF0000000000000); // bits 62..52
   DBL_FRACTION_MASK     = Int64($000FFFFFFFFFFFFF); // bits 51..0
-  DBL_QUIET_BIT    = Int64($0008000000000000); // bit 51 (MSB of fraction): 1 = QNaN, 0 = SNaN
+  DBL_QUIET_BIT         = Int64($0008000000000000); // bit 51 (MSB of fraction): 1 = QNaN, 0 = SNaN
   DBL_NAN_PAYLOAD_MASK  = Int64($0007FFFFFFFFFFFF); // bits 50..0
 var
-  LBits: Int64 absolute AValue;
+  LValueRec: TDoubleRecord absolute AValue;
 begin
-  AMantissa := LBits and DBL_FRACTION_MASK;
-  ANegative := (LBits and DBL_SIGN_MASK) <> 0;
-  AExponent := (LBits and DBL_EXPONENT_MASK) shr 52;
+  AMantissa := LValueRec.AsInt64 and DBL_FRACTION_MASK;
+  ANegative := (LValueRec.AsInt64 and DBL_SIGN_MASK) <> 0;
+  AExponent := (LValueRec.AsInt64 and DBL_EXPONENT_MASK) shr 52;
 
   if AExponent = $7FF then
   begin
     if AMantissa = 0 then
       ANumberType := tfInfinity
-    else if (LBits and DBL_QUIET_BIT) = 0 then
+    else if (LValueRec.AsInt64 and DBL_QUIET_BIT) = 0 then
       ANumberType := tfSignalingNan
     else if (AMantissa and DBL_NAN_PAYLOAD_MASK) = 0 then
       ANumberType := tfIndefinite
@@ -665,11 +677,11 @@ end;
 
 function ParseFloat(const AValue: Double): string;
 var
-  LValueRec: Int64 absolute AValue;
+  LValueRec: TDoubleRecord absolute AValue;
 begin
   // This call parses a double value to its sign, exponent, and mantissa.
-  Result := Format('Dbl(Sgn="%s",Exp=$%3.3x,Man=$%13.13x)', [SIGN_ARRAY[(LValueRec and $8000000000000000) <> 0],
-    ((LValueRec and $7FF0000000000000) shr 52), (LValueRec and $000FFFFFFFFFFFFF)]);
+  Result := Format('Dbl(Sgn="%s",Exp=$%3.3x,Man=$%13.13x)', [SIGN_ARRAY[(LValueRec.AsInt64 and $8000000000000000) <> 0],
+    ((LValueRec.AsInt64 and $7FF0000000000000) shr 52), (LValueRec.AsInt64 and $000FFFFFFFFFFFFF)]);
 end;
 
 function ParseFloat(const AValue: Single): string;
